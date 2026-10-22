@@ -41,13 +41,9 @@
 
 ### App 侧有两份，方向是单向的
 
-`$CORE_LIVE` 是 **Arduino IDE 真正加载的那份**（插件安装目录）。改动先落在这里，在这里编译、烧板、验证。
+`$CORE_LIVE` 是 **Arduino IDE 真正加载的那份**（插件安装目录），改动在这里做；IDE 不看 `$CORE_REPO`。
 
-**只有验证通过的代码才拷进 `$CORE_REPO` 提交。**
-
-- 反过来做没有意义 —— IDE 根本不看 `$CORE_REPO`，改那边不生效。
-- ⚠️ **`$CORE_LIVE` 不在版本控制下。** 验证通过后忘了同步，那段代码就只存在于这一台机器上，重装一次 IDE 就没了。
-- 同步**继续手动做，不自动化**（2026-09-11 定）。兜底是 P3 `$CORE_REPO/tests/check_core_sync.py`，提交前跑它。
+**`$CORE_LIVE` 改过之后，编译通过，就同步进 `$CORE_REPO`。**
 
 核对两边是否已同步：`$CORE_REPO/tests/check_core_sync.py`（用例 **P3**，发版检查单 `CHK-B3`）。
 

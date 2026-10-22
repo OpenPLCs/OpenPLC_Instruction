@@ -16,7 +16,7 @@
 
 **KNX 角色**：用 `OpenPLC_KNX` 的 sketch 在 `.ino` 里写一行 `OPENPLC_KNX_ROLE(TP_DEVICE);` 或 `OPENPLC_KNX_ROLE(IP_ROUTER);`（同 `OPENPLC_APP_VERSION` 的写法），没写就编不过；IDE 菜单里没有 KNX 角色（`R3-24`，[M3](../M3-app-runtime.md)）。
 
-**认出是哪块板**：电脑打开板子的 USB 口 1（串口监视器连上、DTR 从无到有）时，心跳灯（LED3，`PE2`）快闪约 2 s，然后 `PE2` 回到原来的模式和电平；这 2 s 里 sketch 对 `PE2` 的改动在结束时生效，不用让出这个脚。IDE 端口列表里板子的 COM 口旁标出 `OPEN-PLC`（`R3-25`，[M3](../M3-app-runtime.md)）。
+**认出是哪块板**：电脑经 USB 打开板子的串口或经网口单独给板子发请求时，LED3（`PE2`）快闪约 2 s，然后 `PE2` 回到原来的模式和电平；这 2 s 里 sketch 对 `PE2` 的改动在结束时生效，不用让出这个脚。IDE 端口列表里板子的 COM 口旁标出 `OPEN-PLC`（`R3-25`，[M3](../M3-app-runtime.md)）。
 
 **故障处理**：core 的 `HardFault_Handler` 等四个是弱定义，把故障写进开机日志后复位；sketch 自己定义同名函数就用 sketch 的（2026-10-18 编译核实）。
 

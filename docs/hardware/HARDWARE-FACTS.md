@@ -176,6 +176,20 @@ Arduino core 不配这个脚，它停在复位默认值，而**模拟模式断�
 | 起振 | **没有 5 秒停顿。** 复位后板子立刻出 banner。晶振要是没起振，`HAL_RCC_OscConfig()` 会阻塞到 `LSE_TIMEOUT_VALUE`（5000 ms） |
 | 掉电保持 | ✅ 2026-09-19 真断电（ST-Link 量到 0.00V）后备份寄存器里的值还在。⚠️ **两边 RTC 时钟源必须一致**，否则每次 bootloader ↔ app 切换都会清空备份域，见 [DECISIONS.md 第 57 条](../tables/DECISIONS.md) |
 
+## 时钟源：板上的晶振，和 HSI48 / LSE 的规格余量
+
+2026-10-22 核实。晶振型号出自 Bridge 贴片表和 BOM（`$HW/Production/Bridge/`）；哪颗 25 MHz 接 MCU 出自 `$HW/Bridge_overview.txt`，网表没逐脚核对。用法定在 [DECISIONS.md 第 157 条](../tables/DECISIONS.md)。
+
+| 项 | 事实 | 出处 |
+|---|---|---|
+| HSE | `XTAL3` ABM8AIG-25.000MHZ-12-2Z，无源晶体，所以是 `RCC_HSE_ON` 不是 BYPASS。另一颗 25 MHz（`XTAL1` ABM3B）只给以太网 PHY | Bridge 贴片表、BOM |
+| LSE | `XTAL2` ABS07-120-32.768KHZ-T：CL 6.0 pF，ESR 典型 55 kΩ、最大 60 kΩ | Abracon 手册 2021-05-26 版 |
+| HSI48 不校准的精度 | 30 °C 时 47.5–48.5 MHz（±1%），−40–125 °C 时 −4.5%–+3.5%；USB 全速要求 ±0.25%，所以 **USB 用 HSI48 必须开 CRS** | DS12110 Rev 10 表 46 |
+| LSE 各档能带的晶振 gmcrit 上限 | `LOW` 0.5、`MEDIUMLOW` 0.75、`MEDIUMHIGH` 1.7、`HIGH` 2.7 µA/V | DS12110 Rev 10 表 45 |
+| LSE 驱动档什么时候能改 | **LSE 开着时改不动**，要先关 LSE 再设。rev Y 上两个中档的寄存器编码对调，读写都要按芯片版本换算 | HAL `stm32h7xx_hal_rcc.h:7734`、`:7746`（RM0433 原文没核对） |
+| 本晶振的 gmcrit | 按 AN2867 的 4·ESR·(2πF)²·(C0+CL)²（C0 取分销商标的 1.2 pF）：典型 0.48、最大 **0.53 µA/V**，**`LOW` 档不够** | 计算 |
+| 480 MHz | 只有 rev V 芯片能跑，且结温不超过 105 °C。本板芯片是 rev Y 还是 rev V **没核实** | DS12110 Rev 10 第 22 页脚注 |
+
 ## SRAM4 的 no-init 机制
 
 bootloader 的两个链接脚本（`STM32H743IIKX_FLASH.ld`、`STM32H743IIKX_FLASH_PORTTOOL.ld`）和板卡包的 `ldscript.ld` 都把 SRAM4 前 32 字节挖出来给 boot handoff 记录（`RAM_D3 ORIGIN = 0x38000020`）。
@@ -237,6 +251,8 @@ while ((VREFBUF->CSR & VREFBUF_CSR_VRR) == 0U) { }
 ⚠️ **VRR 置位时输出还没稳，置位后固定再等 20 ms 才读**（`$BOOT/TestCase/common/port_vref.c:35-38`）：2026-08-28 VRR 一置位就测，一次开机 2493 mV、下一次 2763 mV，这个误差会乘进每个 ADC 读数、温度和 DAC 码值。
 
 ⚠️ 使能 VREFBUF 的前提是 VREF+ 没有被外部驱动。本板成立：VREFINT 读到满量程 → VREF+ < 1.216 V → 引脚是悬空的，不是被接到 3V3。2026-10-08 原理图核实（Bridge 原理图第 2 页 `SHEET02-Power`）：VREF+（P1）网络 `STM_VREF+` 只接 C44 1 µF、C45 100 nF、TP3，接 VDDA 的 R28 是 `0 R DNP`（贴片表 `Pick Place for 1436_01_SCHAE-BR-PCB.txt` 同为 DNP）；这条网络经 Bridge J1-27 → UpperDeck J7-17 引到 UpperDeck 的 `/VREF`（JP3-2、JP4-2）。**所以 DAC 满量程 = VREFBUF 输出，不是 3.3 V。**
+
+要换成外部基准，就让 VREFBUF 进高阻、从 `TP3` 接入外部电压：要在 2.0 V 到 VDDA 之间（DS12110 Rev 10 表 87），而且只能在 VREFBUF 进高阻之后接。固件和面板的做法见 [PORTTOOL-FLOW.md](../modules/M4/PORTTOOL-FLOW.md) B.4「外部基准」。
 
 ### PC3_C 的 SYSCFG 模拟开关：模拟用途要「开」
 
@@ -483,8 +499,6 @@ CAN 两根信号跨板走 Upper Deck **J8 pin2（CAN_TXD_PB9）/ pin3（CAN_RXD_
 | LED3 | 绿 | HBEAT | **PE2** → R63 330R → LED3 → GND，**高亮低灭** | 只有固件把 PE2 拉高时 | (64.7, 39.1)，离另两个远，R63 在它旁边 (64.8, 36.4) |
 
 ⚠️ **`$HW/Bridge_overview.txt` 写的是「5V0 OK(绿)、3V3 OK(黄)」，颜色和原理图 / BOM 相反**：BOM 里 LED2（5V0 OK）是黄（150040YS73220），LED1（3V3 OK）是绿。以原理图和 BOM 为准；那份概览的错报给用户，不在 `$HW` 里改。
-
-⚠️ **2026-10-13 用户在一块真板子上看到 LED3 从没亮过，跑「闪灯」时也不亮**（另两个常亮）。原理图和固件（`TestCase/common/port_led.c` 推挽输出、置高点亮；bootloader 开机窗口也闪它，`Core/Src/main.c` `boot_window`）都没看出问题，原因只能在板子上查：面板命令框发 `pt.led fault=1`（LED3 应常亮），万用表量 R63 靠 MCU 那头对地 —— 约 3.3 V 说明 MCU 在推，问题在 R63 / LED3 本身（没焊好、方向贴反、坏）；0 V 说明 PE2 没推出来。未核实。
 
 ## 两路板载温度是 LM50 线性传感器
 

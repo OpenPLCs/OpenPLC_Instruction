@@ -17,7 +17,7 @@
 
 | 编号 | 是什么 | 条数 | 定义在哪 |
 |---|---|---|---|
-| `R1-01`–`R1-43` | 需求（一句可判定的话） | 43 | [M1-firmware-upgrade.md](../modules/M1-firmware-upgrade.md) |
+| `R1-01`–`R1-44` | 需求（一句可判定的话） | 44 | [M1-firmware-upgrade.md](../modules/M1-firmware-upgrade.md) |
 | `R2-01`–`R2-04` | 需求（一句可判定的话） | 4 | [M2-ownership.md](../modules/M2-ownership.md) |
 | `R3-01`–`R3-25` | 需求（一句可判定的话） | 25 | [M3-app-runtime.md](../modules/M3-app-runtime.md) |
 | `R4-01`–`R4-03` | 需求（一句可判定的话） | 3 | [M4-production-fixture.md](../modules/M4-production-fixture.md) |
@@ -29,7 +29,7 @@
 | `CHK-A1`–`CHK-A7` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 7 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
 | `CHK-B1`–`CHK-B9` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 9 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
 | `CHK-C1`–`CHK-C7` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 7 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
-| 第 1–39 41–51 53–156 条 | 决议（定了就不重开，除非出现它写明的重开条件） | 154 | [DECISIONS.md](DECISIONS.md) |
+| 第 1–39 41–51 53–161 条 | 决议（定了就不重开，除非出现它写明的重开条件） | 159 | [DECISIONS.md](DECISIONS.md) |
 
 <!-- END generated -->
 

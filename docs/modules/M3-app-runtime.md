@@ -76,7 +76,7 @@ flowchart TD
 | **R3-22** | 日志与诊断 | core 不往 RS232 端子写任何东西；系统日志带前缀走 USB 口 1（就是用户的 `Serial`），电脑打开口 1 时先吐 SRAM4 开机缓存再接实时输出，sketch 里可关；IAPTool 有命令随时读缓存（`IAPTool log <ip>`，[IAP-PROTOCOL.md](M1/IAP-PROTOCOL.md)「`openplc_log`」）；故障信息复位后经口 1 吐出（决策 147） | `T3-24`（缓存本身）；口 1 吐出和故障记录待定，和 `R1-43` 一起定 | ⬜ |
 | **R3-23** | 端子归用户 | `RS232` 端子只在用户程序调 `RS232.begin()` 时才打开（先配串口引脚、再拉高 `RS232_EN`），`RS232.end()` 关；用户打印用 `Serial`（即 `SerialUSB`，USB 口 1）；系统日志带 `[sys]` 前缀，sketch 里写 `OPENPLC_SYSTEM_LOG(OFF);` 可让它不往口 1 吐；口 1 没打开时系统日志只进缓存、不拖慢程序；例程不等电脑，只打一次的输出（开头的说明、一次性的结果、初始化失败的原因）在 `Serial` 从没连变成连上时补打（复位后 USB 必然断开重连，串口工具要重开；等 3 秒不够，实测过） | 待定，和 `R1-43` 一起定 | ⬜ |
 | **R3-24** | KNX 角色写在 sketch 里 | 用 `OpenPLC_KNX` 的 sketch 在 `.ino` 里写一行 `OPENPLC_KNX_ROLE(TP_DEVICE);`（TP 设备，0x07B0）或 `OPENPLC_KNX_ROLE(IP_ROUTER);`（IP 路由器，0x091A），同 `OPENPLC_APP_VERSION` 的写法；IDE 菜单里没有 KNX 角色。没写角色又用了这个库，编译报错并给出要加的那一行；不用 KNX 的 sketch 照常编（用户 2026-10-15 定） | P5（6 个 KNX 例程按各自写的角色编过）；没写角色报错 手工 | 🟡 2026-10-17 已实现，未编译验证 |
-| **R3-25** | 认出板子的 USB 口 | Arduino IDE 端口列表里板子的 COM 口旁标出板子名（`boards.txt` 声明 `upload_port.0.vid=0x0483`、`upload_port.0.pid=0x5740`）；电脑打开这个 COM 口（DTR 从无到有）时，板上心跳灯（LED3，PE2，[HARDWARE-FACTS.md](../hardware/HARDWARE-FACTS.md)）快闪约 2 s 后恢复原状态，几块板同时插着时打开哪个口哪块闪（用户 2026-10-17 定） | 手工：上板时 IDE 2 看端口列表、两块板各开一次串口监视器 | 🟡 2026-10-17 已实现，未编译验证 |
+| **R3-25** | 认出板子 | Arduino IDE 端口列表里板子的 COM 口旁标出板子名（`boards.txt` 声明 `upload_port.0.vid=0x0483`、`upload_port.0.pid=0x5740`）；电脑经 USB 打开板子的串口或经网口单独给板子发请求时，LED3（PE2，[HARDWARE-FACTS.md](../hardware/HARDWARE-FACTS.md)）快闪约 2 s 后恢复原状态，广播发现不闪（[决策 161](../tables/DECISIONS.md)） | 手工：两块板都接着，IDE 各选一次、开一次串口监视器、经网口上传一次，看哪块闪 | 🟡 已实现，编译通过，未上板 |
 
 **共 25 条。其中 18 条有测试用例直接测它，7 条没有。**
 

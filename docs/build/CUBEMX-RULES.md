@@ -17,6 +17,7 @@
 ### 已经通过 `.ioc` 固化的
 
 - `USBD_LPM_ENABLED` —— `.ioc` 里 `USB_DEVICE.USBD_LPM_ENABLED-CDC_FS=0`。否则设备对主机声称支持 USB 2.0 LPM，而 `USBD_LL_Init()` 里 `lpm_enable = DISABLE` 并没开它。
+- CRS 跟 USB SOF 校准 HSI48、LSE 驱动 `MEDIUMLOW`（[决策 157](../tables/DECISIONS.md)）—— `.ioc` 里 `VP_RCC_USB.Mode=USB_FS`（界面 RCC → CRS SYNC 选 `USB_FS`）、`RCC.LSE_Drive_Capability=RCC_LSEDRIVE_MEDIUMLOW`。
 
 ### 重新生成后仍须复查（不在 USER CODE 块内）
 

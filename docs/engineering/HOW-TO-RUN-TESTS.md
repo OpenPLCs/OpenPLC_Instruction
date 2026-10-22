@@ -37,7 +37,7 @@
 ```
 python tools/init_machine.py      # 一次性：探测本机路径，生成 config/machine.py（Linux 上是 python3）
 python tools/selfcheck.py         # 不需要板子的检查；--list 先看它跑哪几步
-python tools/flash_bootloader.py  # 命令行编 bootloader、ST-Link 烧写、抓启动日志（CubeIDE 必须关闭）
+python tools/flash_bootloader.py  # 命令行编 bootloader、ST-Link 烧写、复位一次备份域（决策 157，RTC 和备份寄存器清零）、抓启动日志（CubeIDE 必须关闭）
 python tools/serial_watch.py      # 只看板子 USB 口 1（系统日志和 Serial），不碰板子；--ports 改看 RS232
 ```
 
@@ -256,7 +256,7 @@ python tools/check_mirror_sync.py        # 在 $TEST 下
 python tests/check_core_sync.py          # 在 $CORE_REPO 下
 ```
 
-比对 Arduino IDE **真正加载**的那份（`$CORE_LIVE`）和板卡包的 git 版（`$CORE_REPO`）。方向天生单向：改动在 `$CORE_LIVE` 里做、验证、再拷回仓库提交——`$CORE_LIVE` 不进版本控制，验证过忘了拷回来，那段代码就只活在这台机器上，重装一次 IDE 就没了。六类刻意排除在比对之外：IDE 自己的安装元数据、Go 构建产物、编辑器备份、AI 助手的本地配置目录、`.vscode/`。**CRLF 与 LF 视为相同**：从网上装的包是 LF，仓库在 `core.autocrlf=true` 下检出是 CRLF，只差换行符不算差异。对应 **CHK-B3**。退出码：0 一致，1 有差异，2 仓库路径不对。
+比对 Arduino IDE **真正加载**的那份（`$CORE_LIVE`）和板卡包的 git 版（`$CORE_REPO`）。改动在 `$CORE_LIVE` 里做，改过之后编译通过就同步进仓库。六类刻意排除在比对之外：IDE 自己的安装元数据、Go 构建产物、编辑器备份、AI 助手的本地配置目录、`.vscode/`。**CRLF 与 LF 视为相同**：从网上装的包是 LF，仓库在 `core.autocrlf=true` 下检出是 CRLF，只差换行符不算差异。对应 **CHK-B3**。退出码：0 一致，1 有差异，2 仓库路径不对。
 
 ### P7 · 总表和用例名单不得漂
 
@@ -480,7 +480,7 @@ python3 tools/run_five_paths.py --only 1 2                        # 只跑这几
 ### 出厂态怎么造、怎么证明
 
 ```bash
-python3 tools/reset_board_to_factory_state.py --elf <boot.elf>  # 擦除 + 烧 bootloader + 写回校准值 + 验证
+python3 tools/reset_board_to_factory_state.py --elf <boot.elf>  # 擦除 + 烧 bootloader + 写回校准值 + 复位备份域（决策 157）+ 验证
 python3 tools/reset_board_to_factory_state.py --check-only      # 只验证，绝不写
 ```
 

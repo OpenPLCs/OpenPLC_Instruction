@@ -90,7 +90,7 @@ flowchart TB
 | `pt.echo` | `<port> <数>` | **把板子刚发的那个数原样送回去**，板子在此基础上累加。这是需求 R4 的回环 | 端口存在、**正在跑**、且 `loop=ctrl` | `ERR no such port` / `ERR <port> is not running` / `ERR <port> takes its echo on its own link, not on this one` |
 | `pt.run` | `<target>`，**或不带参数** | 不带参数 = 列出全部一次性动作；带参数 = 跑一次、**回到命令循环**、用一行 `OK <target> k=v …` 报出量到的数 | 目标名存在 | `ERR no such run target "<name>" - run pt.run with no argument to list them` |
 
-**`pt.run` 现有八个目标**（`TestCase/porttool/porttool_run.c` 里的表），按硬件归成四组：
+**`pt.run` 现有这些目标**（`TestCase/porttool/porttool_run.c` 里的表），按硬件归成四组：
 
 | 目标 | 报什么 | 注意 |
 |---|---|---|
@@ -100,11 +100,15 @@ flowchart TB
 | `sd.probe` | `detected` `ready` `blocks` `block_size` `mib` `v2x` `class` | `detected=0` 是没插卡，`detected=1 ready=0` 是接口 |
 | `sd.integrity` | `mounted` `wrote` `read_back` `identical` `bytes` 两个 CRC `fresult` | 一轮 4 KiB |
 | `sd.put` / `sd.get` / `sd.ls` / `sd.rm` / `sd.eject` | `ok` `name` `size` `crc` `count` `error` | 卡上 `PORTTOOL` 文件夹的文件传递，数据走网口或 USB，见 B.11（决策 120） |
+| `vref` | `src` `mv` `ok` | 模拟基准：`src=int`（片内 VREFBUF 2.5 V，开机默认）或 `src=ext`（VREFBUF 高阻，VREF+ 由外部接入），不带 `src` 只报当前。切换后重量一次 VREF+（`mv`），`ok` 同 `!ain` 的 `ok`。见 B.4「外部基准」（[决策 158](../../tables/DECISIONS.md)） |
+| `lse` | `drv` `ready` `start_ms`，失败时多 `fallback` | 32.768 kHz 晶振的驱动档：不带 `drv` 只报当前；`drv=low\|mlow\|mhigh\|high` 先关 LSE、设档、再开，计起振用时（最长 5 s），起不来就回 `mlow` 重起并报 `fallback=mlow`。RTC 停走起振那几秒，日期时间不清零。**选的档复位后还在**（LSE 靠电池一直开着，开机改不动），测完切回 `mlow`（[决策 159](../../tables/DECISIONS.md)） |
+| `lse.freq` | `ready` `hz` `ppm` `ms` | 32.768 kHz 晶振的频率：TIM16 的 TI1 接 LSE，每 8 个 LSE 周期捕获一次，累计约 1 s（`ms`）的定时器计数算出 `hz`（三位小数）和相对 32768 Hz 的 `ppm`（两位小数）。定时器时钟由 25 MHz 主晶振经 PLL 来，**主晶振的误差也算在里面**，所以只记录不判。LSE 没在跑时只回 `ready=0`（[决策 160](../../tables/DECISIONS.md)） |
 | `rtc.read` | `init` `clk` `date` `time` | 自己按需 `MX_RTC_Init()`。**只读不写** —— 备份域 `DR3` 里住着 bootloader 的 VBAT 见证值 |
 | `led.blink` | `pin` `pulses` `half_ms` `observed=unknown` | PE2 闪六次。**没有回读，`observed` 永远是 unknown**，看没看见是人的判断 |
 | `knx.edges` | `busy` `bus` `shots` `moved` `edges` `dropped` `first_us` `width_us` | 发 `shots` 个单脉冲（默认 3），逐个记 KNX_RX 的每个边沿；每个脉冲的边沿序列（`H@+3us L@+38us` 这种，相对 TX 起点）打成散文行，`OK` 行给汇总：`moved` 有反应的脉冲数，`first_us` / `width_us` 第一个边沿的平均时刻和前两个边沿的平均间隔。KNX 会话在跑时不跑、回 `busy=1`；总线没电回 `bus=dead`、不发。逐边沿时序（[决策 87](../../tables/DECISIONS.md)） |
 | `knx.hist` | `busy` `bus` `tx` `rx` `miss` `w_min` `w_avg` `w_max` `d_min` `d_avg` `d_max` `w_hist` `d_hist` | 发 `bursts` 串、每串 200 个脉冲（默认 3 串，串间 1 s），报收发计数、KNX_RX 脉宽和 TX→RX 延迟的最小 / 平均 / 最大（µs）和两张 8 格直方图（逗号分隔的计数，格界在 `$BOOT/TestCase/KNX/knx_test.c` 的 `KNX_W_EDGES` / `KNX_D_EDGES`）。脉宽 / 延迟直方图（决策 87） |
 | `knx.pullup` | `busy` `bus` `pu_tx` `pu_rx` `pu_miss` `pu_w_avg` `np_tx` `np_rx` `np_miss` `np_w_avg` | PA10 内部上拉开 / 关各发一串 200 个脉冲，`pu_` 是开、`np_` 是关；跑完上拉留在开。板上 /KNX_RX 没有上拉电阻（[HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)「KNX 接口」）。上拉开关对比（决策 87） |
+| `match` | `busy` `ms` `baud` `bps` `rs485` `rs485_ok` `rs485_bytes` `rs485_junk` `can` `can_ok` `can_frames` `can_junk` `can_lec` | 连接区认转换器用（[决策 146](../../tables/DECISIONS.md)，C.3.6「转换器自动识别」）：RS485 端子（`baud=`，默认 115200，只收）和 CAN 端子（`bps=`，默认 500000，正常模式，会应答）同时听 `ms=` 毫秒（默认 3000，200–10000），`rs485=` / `can=` 列出收到的暗号号码（逗号分隔、去重、最多 8 个，一个没有写 `-`）。暗号是 ASCII `OPLC-<n>`（n 1–5 位数字）：RS485 上一行一个，CAN 上一帧的数据就是它（任意标准 ID）。不是暗号的行 / 帧计进 `_junk`；`can_lec` 是听完时的 PSR.LEC 原值（同 `can` 帧的 `lec`）；`_ok=0` 是 USART2 / FDCAN 没起来。开听前先打一行散文 `MATCH_TEST: listening …`。RS485 或 CAN 会话在跑时不听、只回 `busy=1`。caps 里单独一行 `port=match` |
 
 面板：三个 `knx.*` 目标是 KNX 卡片上的一次性用例，执行后结果区把 `OK` 行里的数按中文摆出来（`tx` `rx` `miss` 在这里是脉冲，不是帧）；`busy=1` 说先停会话，`bus=dead` 说总线没电。方案里没有这三步，所以只给读数、不给结论。
 
@@ -209,6 +213,11 @@ pt.start rs232 baud=19200        <- 控制口要换波特率的命令，应答�
 pt.stop rs232
   OK stopped rs232 line=115200   <- 这一行还是 19200；发完两边切回
   !line t=48213 baud=115200 reverted=1   <- 切换后 3 s 没收到任何字节，板子自己切回
+
+pt.run match ms=3000
+  MATCH_TEST: listening on RS485 at 115200 and CAN at 500000 for 3000 ms
+  OK match busy=0 ms=3000 baud=115200 bps=500000 rs485=2 rs485_ok=1 rs485_bytes=72 rs485_junk=0 can=4 can_ok=1 can_frames=9 can_junk=0 can_lec=7
+  OK match busy=1                <- RS485 或 CAN 会话在跑
 
   …共 14 行
 
@@ -333,8 +342,8 @@ pt.stop rs232
 
 | 字段 | 含义 |
 |---|---|
-| `vdda` | 用 VREFINT 量出来的 VDDA，毫伏 |
-| `ok` | **1 = VDDA 量到了且落在合理带内**。`ok=0` 时这一帧所有读数都没有意义 |
+| `vdda` | 用 VREFINT 量出来的 **VREF+**，毫伏（字段名是历史叫法）。片内基准时就是 VREFBUF 的输出，约 2493 |
+| `ok` | **1 = VREF+ 量到了且落在 2000–3600 mV**。`ok=0` 时这一帧所有读数都没有意义 |
 | `ch<n>` | `原始码/引脚毫伏`。**是 MCU 引脚上的值，不是端子上的值** |
 
 ⚠️ **端子换算不在固件里算**，因为它取决于板子焊成了哪个档位 —— 那是一次性的焊接选择，固件读不回来。上位机做换算，并且要说清自己假设的是哪个档。
@@ -586,6 +595,19 @@ Klemmblock D，Upper Deck 与板载。三个会话：`ain`（porttool_ain.c（`$
 | Analog OUT 2 | D15 | `PA5 · DAC1_OUT2` | 同上 | 同上 |
 | AOUT 故障反馈 | — | `PI4 / PE3` | XTR111 开路 / 过载报警 | — |
 | 板载温度 ×2 | — | `PA0 · ADC1_CH16`（短路保护）<br/>`PA3 · ADC1_CH15`（高侧开关） | LM50 | `T = (mV − 500) / 10`，合理带 −25…+100 °C |
+
+### 外部基准（[决策 158](../../tables/DECISIONS.md)）
+
+`pt.run vref src=ext` 让 VREFBUF 进高阻，VREF+（Bridge `TP3`）交给外部接入，用来对比片内基准和外部基准下的噪声；接线由人做。切换顺序避开 VREFBUF 把 VREF+ 下拉的状态：去外部先置 `HIZ` 再清 `ENVR`，回内部一次写 `ENVR=1 HIZ=0`。
+
+| 规矩 | 为什么 |
+|---|---|
+| **先选外部，再接线；切回内部前先断开外部基准** | VREFBUF 开着时外部电压会和它顶在一起 |
+| 外部基准时 `PortVref_Enable()` 不碰 VREFBUF，`pt.aodiag` 的 E3（换 VREFBUF 档）拒跑 | 同上 |
+| 切换后重量 VREF+，固件的 ADC 毫伏和 DAC 码值都按实测值换算；面板「换算后」不跟（C.3.6「AI 换算」） | 外部基准不一定正好 2.5 V |
+| 外部电压要在 2.0 V 到 VDDA 之间 | DS12110 表 87；低于 2.0 V 时 `ok=0`，模拟会话拒绝启动 |
+| 板子复位回到片内基准 | 选择不存 flash；面板重连后自己重发一次（C.3.6「AI / AO 卡片」） |
+| AO 跟着换：DAC 满量程和 4–20 mA 偏置都挂在这条 VREF 网上，面板的 AO 换算仍按 2.5 V | 只改了 AI 换算，AO 的公式没跟实测值 |
 
 **怎么接**：可调电压源接 Analog In 1（J3-4）或 In 2（J4-1），地接 Analog GND（J4-4 / J4-5）；电流表串在 Analog Out → 表 → Analog GND 的回路里。
 
@@ -916,7 +938,8 @@ flowchart LR
 | 操作 | 做法 |
 |---|---|
 | 烧校准值（校准卡片「烧进板子」） | 不走 ST-Link：工装固件 `pt.calw` 自己擦写（[决策 142](../../tables/DECISIONS.md)，C.3.2「烧进板子」） |
-| 烧 bootloader（第 6 步开头） | 擦扇区 0–14 → 写 bootloader 镜像，`-v` 校验 |
+| 烧 bootloader（第 6 步开头） | 擦扇区 0–14 → 写 bootloader 镜像，`-v` 校验 → 复位一次备份域再复位板子 |
+| 烧完复位备份域 | `-r32` 读出 `PWR_CR1`，再在**同一次**调用里 `-w32` 写回它或上 `DBP`、`RCC_BDCR` 写 `BDRST` 再写 0、`-rst`（[决策 157](../../tables/DECISIONS.md)）：LSE 靠电池跨复位一直在跑，驱动档只能在它停着时改，复位后 bootloader 下次开机才按中低档起振。必须同一次调用：`mode=UR` 每次连接都系统复位，`DBP` 会被清掉。代价是 RTC 时间和备份寄存器清零 |
 | 恢复出厂（第 6 步结尾；没通过、停下也做） | 读出校准值区 8 KiB → 先存进 `calibration/<UID>/calarea.readback.<YYYYMMDD-HHMMSS>.bin` → 擦扇区 1–15 → 写回校准值区 → 读回比对 |
 | 恢复出厂没做成 | 第 6 步的 `reason` 写 `board still carries the production root`，面板红字「这块板带着产线的根」（决策 96） |
 | 写回只写非空格子 | 只写不全是 `0xFF` 的 32 字节 flash word，连续的并成一段：空格子要保持擦除状态，bootloader 以后才能往根区和 metadata 里 append（格子大小见 SECTOR-15.md「布局」） |
@@ -1054,7 +1077,14 @@ flowchart LR
 | `pending` | 固件还没改好、或限值还没定时的说明 | 卡片上写明，不假装能测 |
 | `recover` | 断开恢复项（下面「断开恢复」） | 它不按判据步跑，按自己的拔插流程跑，判据步只取 `checks`；`criteria` 里的步判据方案里没有时，`/api/items` 和排程把它当只记录（`ptlib.ForPlan`） |
 
-RTC 不是测试项：连上后在连接区显示板子时间，目录用 `NotItems` 记下这类端口，测试查「`pt.caps` 的每个端口要么有项、要么在这里」。
+板子时间不是测试项：连上后在连接区显示（`rtc.read`）。`pt.caps` 里没有测试项的端口记在目录的 `NotItems`，测试查「`pt.caps` 的每个端口要么有项、要么在这里」。
+
+**晶振页**（[决策 160](../../tables/DECISIONS.md)）：`rtc` 端口在研发测试的端口列表里叫「时钟（晶振）」，只在研发，两项都只测一次、对端无、只记录不判：
+
+| 项 | 发什么 | 卡片上显示 |
+|---|---|---|
+| `rtc.lsefreq` 频率偏差 | `pt.run lse.freq` | 频率、偏差（ppm）、量了多久；一句「主晶振的误差也算在里面，只记录」 |
+| `rtc.lsemargin` 起振余量 | `pt.run lse` 依次带 `drv=low`、`mlow`、`mhigh`、`high`，最后再发一次 `drv=mlow` | 每档一行：起没起来、起振用时、有没有退回 `mlow`；最后一行是切回的中低档。一档要等到 5 s 起振超时再加 5 s 退回，所以一项最长约 50 s |
 
 **测试项怎么跑：研发测试各组的「开始」和工装完整测试的「配置完成，开始测试」**（[决策 97](../../tables/DECISIONS.md)、[决策 102](../../tables/DECISIONS.md)、[决策 103](../../tables/DECISIONS.md)；排程在 `$PORTTOOL/src/ptlib`，HTTP 在 `src/ptpanel/library.go`、`ask.go`，页面 `web/js/library.js`）：
 
@@ -1114,7 +1144,7 @@ RTC 不是测试项：连上后在连接区显示板子时间，目录用 `NotIt
 | 端口结论 | 有一项（多路的项看每一路）不过就不过；全过才过；有没判的项就是「未判」。KNX 只记录的诊断（`knx.bus`、`knx.frames`）和判据方案里没有判据的断开恢复项不算进端口结论；有判据的断开恢复项同其他项 | 决策 103；[决策 150](../../tables/DECISIONS.md)「限值」 |
 | 断开恢复 | `<口>.recover`，做法见下面「断开恢复」 | [决策 150](../../tables/DECISIONS.md) |
 | 问人 | 通用接口：`GET /api/ask` 读当前问题，`POST /api/ask {"id", "yes" \| "value" \| "stop"}` 回答；一次只有一个问题，页面在卡片外的固定框里问；`kind` 是 `wait` 的问题不要人填，只有「停止」，由板子的读数结束（`din.level` 人工逐路走） | 卡片随结果重画，输入框放里面会被冲掉 |
-| 接口 | `POST /api/lib/start {"stage", "duration": "once" \| "1"–"4" \| "forever", "items": [{"id", "on", "params", "peer"}]}`；`GET /api/lib` 读进度和结果（运行中页面每 0.5 s 读一次）；`POST /api/lib/stop` 停。只有研发测试调它；工装完整测试走 `/api/full/start`（C.3.3） | 一个排程 |
+| 接口 | `POST /api/lib/start {"stage", "duration": "once" \| "1"–"4" \| "forever", "items": [{"id", "on", "params", "peer"}]}`；`GET /api/lib` 读进度和结果（运行中页面每 0.5 s 读一次，读完重画；鼠标按着时等松开再画，不然按下和松开落在新旧两个元素上，这次点击就丢了）；`POST /api/lib/stop` 停。只有研发测试调它；工装完整测试走 `/api/full/start`（C.3.3） | 一个排程 |
 | 工装完整测试 | 第 2、4 步经 `Server.RunItems`（`stagecfg.go` 的 `ItemRunner`）走同一套排程，结果同样上卡片 | 一份执行逻辑 |
 | 模拟板 | 不开任何真串口、不找真 USB CDC：要这两种对端的项不过（电脑这头的数是空的）或出错（没绑转换器） | 模拟板自己演对端，开真口会碰到工位上别的东西 |
 
@@ -1129,6 +1159,9 @@ RTC 不是测试项：连上后在连接区显示板子时间，目录用 `NotIt
 | ① 校准 | 每路一块：6 行点表（点 / 实测值 / 误差占满量程 / 按钮），一行就是一个点、没有勾选框；「拟合」（最小二乘直线，给 k、b）、「存到本地」「烧进板子」不变。有实测值的行整行标绿、实测值加粗 |
 | ① 校准 · AI | 每行「记录该点」：要先点校准块的「开始」，校准块没在读时按钮灰掉并写原因；人把信号源调到这一点后点它，取会话里接着来的 8 帧原始读数求平均、按档位换成标称值当实测值。拟合时取「点」当仪表值、读数当标称 |
 | ① 校准 · AO | 每行「输出该点」：板子按标称输出这一点，同一时间只有一个点在输出，正在输出的那一行再点一次就取消（这一路回 0、停输出），人把表上的读数填进实测值。拟合时取帧里的标称输出当标称、人填的当仪表值 |
+| 基准 | 卡头一个开关「片内 2.5 V / 外部」，发 `pt.run vref src=int\|ext`，旁边显示实测 VREF+（回复的 `mv`，读数时随 `!ain` 的 `vdda` 刷新），`ok=0` 标黄；切到外部前提示「选好再接线」，切回片内要先确认「外部基准已断开」。选择记在服务端，板子重连后、开任何模拟会话前重发（[决策 158](../../tables/DECISIONS.md)） |
+| AI 换算 | 「换算后」仍按 2500 mV（同 C.3.2，板上 k、b 是在片内基准下拟合的）；选了外部时这一列标黄、写明不准。噪声统计的引脚毫伏按帧里实测的 VREF+（`vdda`，`ok=0` 时按 2500） |
+| 噪声统计 | 实测块每路一行：最近 N 帧（默认 100，可改）的最小、最大、峰峰值、标准差，原始码和引脚毫伏各一份；「清零」按钮；切换基准时自动清零，免得两种基准的点混在一起 |
 | ② 实测 | 每路一行，没有勾选框，两路都测；块头一个「开始 / 停止」。开始时现读板上 k、b（`pt.cal`）每路显示，没校准写「没校准，按标称」 |
 | ② 实测 · AI | 通道 / 板上 k、b / 原始值 / 换算后（板上 k、b，没校准按标称）/ 目标值（人填）/ 误差 / 对上没有，读数随帧刷新；目标值随时可改，改了误差和对错随即重算 |
 | ② 实测 · AO | 研发里实测和带负载并成这一块：通道 / 板上 k、b / 目标值（单位跟这一路登记的档位）/ 板子输出（DAC mV 和按 k、b 算出的端子值）/ 实际值（人填表读数）/ 误差 / 对上没有；「开始」要两路都填了目标值，开 AO 输出会话（`aout.manual`），按 `(目标 − b) / k` 给每路出各自的目标值（同「AO 带负载输出」的换算），输出中改目标值当场重出；实际值随时可改、误差随即重算；「停止」两路回 0 |
@@ -1287,17 +1320,33 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 
 | 行 | 做法 | 为什么 |
 |---|---|---|
-| 控制口 | 下拉选串口（每项是口名和转换器的名字，像 RS232 转换器的后面标一句，上次用的标「上次用的」，找不到主机版固件时模拟板这一项灰着写原因；模拟板排最后），连接 / 断开（连上后下拉锁住）；下面每秒一次 `pt.run rtc.read` 显示板子时间。控制口上有命令在跑时这一秒跳过，不排队 | 协议没有请求 id，命令只能一条条走；排在长命令后面的读时间会把人点的命令往后推。RS232 转换器那一句只是提示、不替人选（`web/js/conn.js:31`）：只能按转换器的名字认，不同转换器的 VID/PID 可能相同 |
+| 控制口 | 下拉选串口（每项是口名和转换器的名字，像 RS232 转换器的后面标一句，上次用的标「上次用的」，找不到主机版固件时模拟板这一项灰着写原因；模拟板排最后），连接 / 断开（连上后下拉锁住），旁边「自动找」（下面「转换器自动识别」）；下面每秒一次 `pt.run rtc.read` 显示板子时间。控制口上有命令在跑时这一秒跳过，不排队 | 协议没有请求 id，命令只能一条条走；排在长命令后面的读时间会把人点的命令往后推。RS232 转换器那一句只是提示、不替人选（`web/js/conn.js:31`）：只能按转换器的名字认，不同转换器的 VID/PID 可能相同 |
 | 板子时间的日志 | 每秒那条 `OK rtc.read` 归进日志的「板子自述」一类：默认不显示，勾上就回来，导出照留 | 一秒一行会把日志刷掉；时间已显示在控制口下面 |
 | `pt.caps` 的日志 | 面板发的 `pt.caps` 和它的应答（`OK porttool=` / `port=` / `vals=` / `limits=` / `terms=` / `run=` 行）也归「板子自述」：默认不显示，日志里照留、导出照留；人在命令框里敲 `pt.caps` 时自动勾上这一类（`web/js/core.js:87-93`、`:206-210`） | 面板每条命令之后都重读 `pt.caps`（`panel.go:640-648`），不藏会刷掉日志；人自己敲了就是要看 |
 | 日志整块重绘 | 暂停后继续、清空、改筛选、自动勾上 `pt.caps` 时，最近 4000 行一次拼进一个 DocumentFragment 再挂上，不逐行追加（`web/js/core.js:128-135`） | 逐行追加每行都触发一次排版，4000 行会把页面卡住好几秒 |
-| 板子 USB、RS485、CAN 转换器 | 选 COM 口、绑定 / 解绑，走 `/api/link`、`/api/unlink`（每个连接是一个 `loop=link` 端口的对端）。绑上后这一行写收了几行、送回几行，出错时写原文；数每秒随 `GET /api/conn` 的 `links` 更新 | 一种绑定机制，研发卡片和连接区共用；绑上不通时要看得到原因（决策 106） |
+| 板子 USB、RS485、CAN 转换器 | RS485、CAN 两行先由面板自动识别（下面「转换器自动识别」），认不出来才手选。选 COM 口、绑定 / 解绑，走 `/api/link`、`/api/unlink`（每个连接是一个 `loop=link` 端口的对端）。绑上后这一行写收了几行、送回几行，出错时写原文；数每秒随 `GET /api/conn` 的 `links` 更新 | 一种绑定机制，研发卡片和连接区共用；绑上不通时要看得到原因（决策 106） |
 | 网口 | 连上控制口后面板自己探板子地址：发 `pt.start eth`（照板子当前参数，默认 DHCP），等 eth 帧里出现非 `0.0.0.0` 的 `ip`（最多 15 s），再 `pt.stop eth`；lwIP 停会话后照常跑，地址一直有效。这一行写地址（模拟板写「本机 127.0.0.1（模拟板）」），探不到写原因（没网线 / 没 DHCP 服务器要用固定地址）；探的时候「开始」等它结束。之后任何 eth 帧里的地址也更新这一行，换控制口时清掉。地址有了就能连 TCP 对端，同样走 `/api/link`（`tcp`） | 板子只在 eth 会话起来后才有地址，不该要人先跑一遍网络测试才知道；用固件现有命令，不改固件（2026-10-13 用户） |
 | RS232 | 不可选，写明 RS232 就是控制口；测 RS232 的卡片上选波特率，测时控制口一起切（B.7） | 决策 104 |
 | 标准机 | 第二条板子连接，见下表；端口可选模拟板。下拉里另有「不用」，选了写 `/api/stagecfg` 的 `ref_unused`，连上标准机时清掉。连上后这一行有「设置标准机」，打开下面「标准机设置页」 | 决策 103；「不用」时要标准机的项勾着不让开始，CAN 对发换成上位机（[决策 135](../../tables/DECISIONS.md)） |
 | ST-Link | 打开面板和点「刷新」时用 `STM32_Programmer_CLI --list st` 查有没有探针（`src/stlink/probe.go`，只读）；没装 CubeProgrammer 也说出来 | 列探针要一两秒，不每秒查 |
 | KNX USB 接口 | 打开面板和点「刷新」时列出电脑上的 KNX USB 接口候选（`$PORTTOOL/src/knxusb`：厂商自定义用途页、64 字节报告的 HID 设备），下拉选一个点「选用」，只找到一个时自动选它；选好的写名字和 USB 编号。只记在这次运行里，不存盘。KNX 分析窗口开始时才打开它，接口真不真、用哪种 EMI 那时才知道。macOS 上经 IOKit 列出（C.3.7） | 决策 151 第 8 条；接口型号没定，按标准 KNX USB HID 协议找，不按厂商编号；HID 路径插拔就变，存盘没用 |
 | 专业设备 | 不可选，写「预留」 | 接口没定（决策 89） |
+
+**转换器自动识别**（[决策 146](../../tables/DECISIONS.md)；`$PORTTOOL/src/ptmatch`、`src/ptpanel/match.go`，固件 `$BOOT/TestCase/porttool/porttool_match.c`）：
+
+| 项 | 做法 | 为什么 |
+|---|---|---|
+| 控制口「自动找」 | 没连接时可点：对每个候选串口以 115200 发 `pt.caps`，1.5 s 内回 `OK porttool=` 的就是控制口，选上并连接。两个以上都回（另一块多半是标准机）或一个都没回时不连，写明试了哪些口、各自怎样 | RS232 转换器只能按名字猜（上面「控制口」一行）；只有板子答得出自己是不是工装 |
+| 不碰的口 | 蓝牙串口（名字里有 Bluetooth / 蓝牙 / 藍牙，或 Linux 的 `rfcomm`）、ST 的 USB 编号 `0483:*`（ST-Link 虚拟串口，`5740` 是板子自己的 USB）、CANable `16D0:117E`（它走 CAN 那条）；另外控制口、标准机的口、别的连接行绑着的口也不碰 | 这些口一看就不是要找的转换器；蓝牙口一打开要卡好几秒 |
+| 自动认 RS485 / CAN | 控制口连上后自动跑一次，连接区另有「重新识别」。剩下的候选串口按顺序编号 1、2、3…，CANable 接着编；板子跑 `pt.run match ms=3000`（A.3），PC 在板子打出 `MATCH_TEST:` 那行后（最多等 1 s）每 300 ms 发一轮：串口以 115200 发 `OPLC-<n>
+`、彼此错开 15 ms，CANable 以 500 kbit/s 发一帧 ID `0x5A5`、数据 `OPLC-<n>`。板子听完报两个端子各收到哪些号，面板按号对回口 | 转换器型号不可控，只有板子说得出哪个转换器接在哪个端子上（决策 146）；错开发是为了两个 RS485 转换器接在一对线上时不撞成乱码，那样能报出「两个都在」 |
+| 认出来了 | RS485 端子只收到一个串口的号：RS485 一行自动接上这个口（同手动「接上」，记进 `porttool_ports.json`，方案和 `porttool run` 照用）。CAN 端子收到 CANable 的号：CAN 一行写这个 CANable 接在 CAN 端子上，不绑定、不存盘 | CAN 的对端每次按 USB 编号找 CANable（C.3.7），存了没人读 |
+| 没认出来 | 每个端子一句大白话：什么都没收到（查接线和转换器电源）；收到了东西但不是暗号（RS485 波特率不对或 A / B 接反，CAN 波特率不对或 H / L 接反）；收到两个口的号（两个转换器接在同一对线上）；收到别的端子那类转换器的号（如「COM12 的暗号出现在 CAN 端子上」：串口转换器接到了 CAN 端子）；电脑上没有 CANable；端子没起来（`_ok=0`）。哪个端子都没出现的口另列一句。没认出来的那一行退回手选（下拉 +「接上」），原因写在下拉上面 | 决策 146「兜底」 |
+| 手选时拔插 | 有一行在手选时，面板每 2 s 看一次串口列表；识别之后新出现的口（拔下再插上也算）在下拉里标「刚插上」并选中 | 拔插一下转换器，人就知道是哪个口 |
+| 前提 | RS485 或 CAN 会话在跑时板子回 `busy=1`，面板说先停掉再识别；固件里没有 `match` 目标（旧固件）时两行退回手选并写明 | 识别要占用这两个端子 |
+| 模拟板 | 不碰这台电脑的任何串口：候选是假串口 `SIM-A`、`SIM-B` 和假 CANable `SIM-CAN`，发出的暗号经 `sim.tok` 进模拟板，模拟板按自己的假接线（默认 `SIM-A` 接 RS485、`SIM-B` 不接、`SIM-CAN` 接 CAN，`sim.wiring` 可改）送到端子上，板子那半跑真的 `match` 目标；认出来的口只显示、不绑定（模拟板自己扮演对端） | 面板流程能完整走，同时不往真串口发东西 |
+
+接口：`POST /api/match {}` 重新识别（在后台跑，结果随 `GET /api/conn` 的 `match` 回来：`{"running", "at", "sim", "terms": {"rs485" / "can": {"ok", "com", "why"}}, "unseen", "skipped": [{"com", "why"}], "error"}`，`skipped` 是没试的口和原因）；`POST /api/match/control {}` 找控制口，回 `{"found", "tried": [{"com", "why"}], "error"}`。
 
 **标准机的接口**（执行器那头用 `Server.refBoard()` 拿到这条连接，传给 `ptseq.Runner.Ref`）：
 
@@ -1419,7 +1468,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | `stage6/IAPTool` | Linux 版：`$TOOL/Output/linux/IAPTool` | 不打包 |
 | `stage6/FixtureDemo.ino.bin` | 打包时用 `arduino-cli` 从板卡包例程 `FixtureDemo` 现编（`$PORTTOOL` 的 `tools/local.json` 的 arduino-cli 和它的配置，FQBN 从 `$CORE_REPO/tests/_common.py` 读，同 `$CORE_REPO/tests/examples_build/build.py`） | 不打包 |
 
-**版本号**（[决策 120](../../tables/DECISIONS.md)，改决策 110、112）：上位机（`$PORTTOOL/src/cmd/porttool/main.go` 的 `version`，面板顶上写「上位机 X」）和工装固件（`$BOOT/TestCase/porttool/porttool.c` 的 `PORTTOOL_VERSION`，`tools/build.sh fixture` 记进 `Output/fixture/VERSION`、镜像按它命名）**前两位一致**，表示一套；第三位各自修小问题时各自升；两边能力有变（新命令、新项）时一起升次版本。连上板子后前两位不一致，面板顶上提醒「上位机和固件不是一套」。打包时 `tools/build.sh deliver` 查三件：两边前两位一致；镜像 `.bin` 的 SHA-256 变了而固件版本号和 `$PORTTOOL/tools/shipped_fixture.json` 里记的一样，拒绝；上位机源码（`src/` 下除 `*_test.go`、`src/plans/`、`src/simboard/c/` 以外的文件，含 `web/`，加 `go.mod` / `go.sum`，按路径排序算 SHA-256）变了而上位机版本号一样，拒绝。后两条不过时，菜单里让人选「内部测试照打」或「不打」，命令行加 `--internal` 照打；内部测试的包不更新 `shipped_fixture.json`，正式发版仍要升版本号（用户 2026-10-20）。拦下时列出要改版本号的每一处（`文件:行`），固件那边含 `FixtureDemo` 的 `FX_PROTOCOL_VERSION`（板卡包 live 和 repo 两份），是在这几个位置里搜当前版本号得出的，不是写死的清单（用户 2026-10-20）。T4-01 的测试不写死版本号，从 `caps_golden.txt` 读；黄金文件由 `TestCase/test.sh t4-01` 按 `porttool.c` 重写，不用手改。比 `.bin` 不比固件源码：同一份源码两次编出来一样（2026-10-13 核过）；比 Go 源码不比 exe：Go 编出的 exe 默认带构建路径，不能逐字节复现。
+**版本号**（[决策 120](../../tables/DECISIONS.md)，改决策 110、112）：上位机（`$PORTTOOL/src/cmd/porttool/main.go` 的 `version`，面板顶上写「上位机 X」）和工装固件（`$BOOT/TestCase/porttool/porttool.c` 的 `PORTTOOL_VERSION`，`tools/build.sh fixture` 记进 `Output/fixture/VERSION`、镜像按它命名）**前两位一致**，表示一套；第三位各自修小问题时各自升；两边能力有变时一起升次版本，给研发测试加命令、加项这类改进只升第三位。连上板子后前两位不一致，面板顶上提醒「上位机和固件不是一套」。打包时 `tools/build.sh deliver` 查三件：两边前两位一致；镜像 `.bin` 的 SHA-256 变了而固件版本号和 `$PORTTOOL/tools/shipped_fixture.json` 里记的一样，拒绝；上位机源码（`src/` 下除 `*_test.go`、`src/plans/`、`src/simboard/c/` 以外的文件，含 `web/`，加 `go.mod` / `go.sum`，按路径排序算 SHA-256）变了而上位机版本号一样，拒绝。后两条不过时，菜单里让人选「内部测试照打」或「不打」，命令行加 `--internal` 照打；内部测试的包不更新 `shipped_fixture.json`，正式发版仍要升版本号（用户 2026-10-20）。拦下时列出要改版本号的每一处（`文件:行`），固件那边含 `FixtureDemo` 的 `FX_PROTOCOL_VERSION`（板卡包 live 和 repo 两份），是在这几个位置里搜当前版本号得出的，不是写死的清单（用户 2026-10-20）。T4-01 的测试不写死版本号，从 `caps_golden.txt` 读；黄金文件由 `TestCase/test.sh t4-01` 按 `porttool.c` 重写，不用手改。比 `.bin` 不比固件源码：同一份源码两次编出来一样（2026-10-13 核过）；比 Go 源码不比 exe：Go 编出的 exe 默认带构建路径，不能逐字节复现。
 
 ### C.4.1 面板的三种语言怎么做（决策 82）
 

@@ -57,7 +57,7 @@ IDE 自带的 CLI 在 `$IDE/resources/app/lib/backend/resources/arduino-cli`（W
 
 | 目标 | 命令 |
 |---|---|
-| IAPTool（Windows / Linux amd64，macOS amd64 + arm64） | `$TOOL/build.py`（Windows 双击 `build.cmd`，Linux / macOS 直接执行）—— 别手搓 `go build`，输出布局是约定好的；macOS 的 `IAPTool` 是按 CPU 选 `IAPTool-amd64` / `IAPTool-arm64` 的启动脚本（IDE-18） |
+| IAPTool（Windows / Linux amd64，macOS amd64 + arm64） | `$TOOL/build.py`（Windows 双击 `build.cmd`，Linux / macOS 直接执行）—— 别手搓 `go build`，输出布局是约定好的；macOS 的 `IAPTool` 是按 CPU 选 `IAPTool-amd64` / `IAPTool-arm64` 的启动脚本 |
 | TestCase（本机） | `cd $TEST && go build -o Output/<GOOS>/TestCase .`。`$TEST/tools/run_case.py` 找它，别自己拼路径 |
 | network_discovery（四平台） | `$CORE_LIVE/tools/discovery/build.py` —— **Arduino IDE 开着会因文件占用失败** |
 | bootloader | STM32CubeIDE；测试要的命令行编译是 `$TEST/tools/build_image.py` |

@@ -9,7 +9,7 @@
 | 变量 | 指什么 |
 |---|---|
 | `$BOOT` | `OpenPLC_BootLoader` 的 clone（公开仓 `OpenPLCs/OpenPLC_BootLoader`，决策 153）—— bootloader 的 CubeIDE 工程 |
-| `$CORE_REPO` | `open_plc_arduino` 的 clone —— 板卡包，在版本控制下 |
+| `$CORE_REPO` | `OpenPLC_Arduino_PKG` 的 clone —— 板卡包，在版本控制下 |
 | `$CORE_LIVE` | Arduino IDE **真正加载**的那份板卡包（`$A15/packages/.../stm32/<版本>`），**不在版本控制下** |
 | `$TOOL` | `OpenPLC_IAPTool` 的 clone（公开仓 `OpenPLCs/OpenPLC_IAPTool`，决策 155）—— IAPTool 和它自己的单元测试 |
 | `$PORTTOOL` | `OpenPLC_PortsTestingTool` 的 clone —— PortTool（给硬件工程师的端口测试面板）和它的测试、交付打包（决策 76） |
@@ -19,7 +19,7 @@
 | `$REF` | `Hello_World_OpenPLC` 的 clone —— 同一块板子的参考工程 |
 | `$IDE` | Arduino IDE 2.x 的安装根目录 |
 | `$A15` | Arduino 的数据目录（装着 `packages/` 那个） |
-| `$PKGIDX` | `package_index_json` 的 clone —— 只在发板卡包时用 |
+| `$PKGIDX` | `OpenPLC_Arduino_PKG_Json` 的 clone —— 只在发板卡包时用 |
 | `$PROD` | `OpenPLC_Instruction` 的 clone（公开仓 `OpenPLCs/OpenPLC_Instruction`）—— 产品设计文档：硬件事实、模块、构建、测试方法、决策 |
 
 ⚠️ **这里刻意不写任何一条本机的实际路径** —— 这个仓会被 clone 到别处。**这台机器上每一项解析成了什么，问 `$TEST` 里的 `python tools/common.py --probe`**。

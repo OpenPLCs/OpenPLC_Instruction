@@ -101,7 +101,7 @@ class _Repos:
     """Where each repo is: beside this one, or named by OPENPLC_<KEY>."""
     DOCS_REPO = str(DOCS)
     BOOT_REPO = _sibling("BOOT_REPO", "OpenPLC_BootLoader")
-    CORE_REPO = _sibling("CORE_REPO", "open_plc_arduino")
+    CORE_REPO = _sibling("CORE_REPO", "OpenPLC_Arduino_PKG")
     TOOL_REPO = _sibling("TOOL_REPO", "OpenPLC_IAPTool")
     PORTTOOL_REPO = _sibling("PORTTOOL_REPO", "OpenPLC_PortsTestingTool")
     TEST_REPO = _sibling("TEST_REPO", "OpenPLC_Test")

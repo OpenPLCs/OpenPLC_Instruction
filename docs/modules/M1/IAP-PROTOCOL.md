@@ -7,7 +7,7 @@
 
 实现：bootloader 在 [`IAP_server.c`](../../../../OpenPLC_BootLoader/IAPServer/IAP_server.c) 的 `process_command()`
 和 [`udp_server.c`](../../../../OpenPLC_BootLoader/IAPServer/udp_server.c)；
-app 在 core 的 [`udp_server.c`](../../../../open_plc_arduino/libraries/OpenPLC_IAP/src/udp_server.c)。
+app 在 core 的 [`udp_server.c`](../../../../OpenPLC_Arduino_PKG/libraries/OpenPLC_IAP/src/udp_server.c)。
 **命令表以代码为准**，两边对不上时是这份文档过期了。
 
 ## 传输

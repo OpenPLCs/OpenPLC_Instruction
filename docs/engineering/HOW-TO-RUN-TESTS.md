@@ -195,7 +195,7 @@ T1-07–T1-10 和 T1-11 都要求设备处于 bootloader 且以太网已起。�
 
 **范围**：自有库（`OpenPLC_*`）和上游库的例程都编。上游例程里本来就不面向 H743 的（别的芯片的外设、这块板没有的 USB 功能）列在 `build.py` 的排除表里，每条带一句理由（决议 68）。
 
-**什么时候跑**：改了 `open_plc_arduino` 的任何库之后，以及发版前。**不在 `selfcheck` 里** —— selfcheck 是"改完代码就跑"的东西，往里加 45 分钟只会让人不跑它。
+**什么时候跑**：改了 `OpenPLC_Arduino_PKG` 的任何库之后，以及发版前。**不在 `selfcheck` 里** —— selfcheck 是"改完代码就跑"的东西，往里加 45 分钟只会让人不跑它。
 
 ```
 python tests/examples_build/build.py              # 在 $CORE_REPO 下；全部

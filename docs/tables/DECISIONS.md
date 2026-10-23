@@ -446,7 +446,7 @@ stm32cubeidec.exe … -application org.eclipse.cdt.managedbuilder.core.headlessb
 
 2026-09-08 定。目的：没有板子时也能做上位机和固件的联调。
 
-**决定**：模拟板 = `TestCase/porttool/` 那些 `.c` **原样**编成 PC 可执行程序，只换掉底下的外设 stub 和最外层的 main（`$PORTTOOL/src/simboard/c/sim_main.c`，`tools/build.sh sim` 编）。它在 stdin/stdout 上说端口工装协议，上位机用保留端口名 **`sim`** 连它。
+**决定**：模拟板 = `TestCase/porttool/` 那些 `.c` **原样**编成 PC 可执行程序，只换掉底下的外设 stub 和最外层的 main（`$PORTTOOL/src/simboard/c/sim_main.c`，`start.sh sim` 编）。它在 stdin/stdout 上说端口工装协议，上位机用保留端口名 **`sim`** 连它。
 
 **为什么不用 Go 另写一个**：手写的假板子会漂 —— 固件加目标、改 caps 形状时它跟不上，全靠人手工同步。而 `pt.caps` 自描述这一整套设计（第 17 / 25 / 28 条）的前提就是「固件是唯一事实源」，再养一个会漂的副本等于把那个前提拆掉。真固件编过来，固件改了它直接编不过，漂不了。
 
@@ -2439,7 +2439,7 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 | 目录 | 放什么 |
 |---|---|
 | `src/` | 产品的全部源码：`src/cmd/porttool/`（入口）、`src/<包>/`（原 `internal/` 各包，单元测试 `*_test.go` 照 Go 惯例放在包旁边）、`src/ptpanel/web/`（面板网页）、`src/plans/`（随包发的测试方案）、`src/simboard/`（模拟板：固件主机版的 C 外壳，随包发） |
-| `tools/` | 发包要的全部东西：`tools/build.sh`（唯一入口，菜单）、`tools/ptbuild/`（Go：编 PortTool、编 / 烧工装固件、编模拟板、打交付包、找本机工具）、交付包里的模板（`start.cmd`、`start.sh`、README）、`tools/local.json`（本机工具路径，不进 git） |
+| `tools/` | 发包要的全部东西：`start.sh`（唯一入口，菜单）、`tools/ptbuild/`（Go：编 PortTool、编 / 烧工装固件、编模拟板、打交付包、找本机工具）、交付包里的模板（`start.cmd`、`start.sh`、README）、`tools/local.json`（本机工具路径，不进 git） |
 | `TestCase/` | 测试有关的全部东西：集成测试 T4-01、T4-02、T4-04、T4-05（Go）、测试用的 C 外壳和桩、黄金文件、`TestCase/test.sh`（菜单） |
 | `Output/` | 产物（不进 git）：`Output/delivery/`（交付包）、`Output/bin/<平台>/`、`Output/fixture/` |
 
@@ -2448,7 +2448,7 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 | Go 模块 | `go.mod` 留在仓根，模块名 `PortTool`；`src/` 下不用 `internal/` 目录，因为 `TestCase/` 的测试要 import 这些包 |
 | 语言 | Go；只剩固件本身的 C（模拟板、T4-01 外壳）和两个只负责启动 Go 程序的 `.sh` |
 | 本机工具 | `tools/local.json`，由菜单「找本机工具」生成；每个菜单项开始前查它要的工具，缺的说出来（决策 144） |
-| 入口 | 只用 `.sh`，菜单选，不敲命令；Windows 上经 Git Bash 运行。仓根 `start.sh` 只转调 `tools/build.sh`，双击即出菜单，菜单只有 `tools/build.sh` 一份 |
+| 入口 | 只用 `.sh`，菜单选，不敲命令；Windows 上经 Git Bash 运行。入口只有仓根的 `start.sh` 一份，双击即出菜单（2026-10-23 把原来的 `tools/build.sh` 并进来，决策 167） |
 | 编完 | 打印每个产物的完整路径；编 PortTool 时 `plans/` 自动拷到 exe 旁边 |
 | 清理 | 「全部」先清空整个 `Output/`（菜单里先列出要删的、问一句）；单项编译前只删自己那份产物：工装固件清 `Output/fixture/`，PortTool、模拟板删各自的可执行文件；面板存的设置和记录、`plans/` 里产线自己写的方案不动；烧录、打包不清 |
 
@@ -2702,3 +2702,17 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 **理由**：起振是个概率事件，一次看不出余量，多跑几次的成功率和用时离散才反映余量；档位和次数由工程师定。
 
 **什么情况下重开**：要在这张卡里单独验复位后档位保持。
+
+## 167 · 构建入口只留仓根的一个 `start.sh`
+
+2026-10-23 定。
+
+| 事 | 定案 |
+|---|---|
+| 入口 | 原来仓根 `start.sh` 只转调 `tools/build.sh`，两个文件合成一个，放在仓根，叫 `start.sh`；`tools/build.sh` 删掉 |
+| 默认 | 菜单直接回车选「全部」，清空旧产物的确认直接回车选「删除并编译」；做完等再按一次回车才关窗口 |
+| 不变 | 菜单项、参数和 `tools/ptbuild/` 不变；交付包里给硬件工程师的 `start.sh`、`start.cmd` 是另外两个文件，不是它 |
+
+**理由**：两个文件做同一件事，只有一个入口才不会写错路径；文档、测试、报错信息里的 `tools/build.sh` 全改成 `start.sh`。
+
+**什么情况下重开**：—

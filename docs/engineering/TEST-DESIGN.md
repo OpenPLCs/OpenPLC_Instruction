@@ -62,7 +62,7 @@
 T4-01 的 `test_main.c` 在 `TestCase/host/porttool_caps/harness/`，模拟板的 `sim_main.c` 和桩在 `$PORTTOOL/src/simboard/c/`，**都不和 Go 文件同级**：
 `CGO_ENABLED=1` 时 Go 工具链会去编包目录里找到的任何 `.c` 文件，**编不过就整个包拒绝**。
 
-同一份源文件清单（`$PORTTOOL/src/simboard/c/sources.txt`）供 T4-01 和模拟板（`tools/build.sh sim`）共用：**同样的固件、同样的桩，换一个入口** ——
+同一份源文件清单（`$PORTTOOL/src/simboard/c/sources.txt`）供 T4-01 和模拟板（`start.sh sim`）共用：**同样的固件、同样的桩，换一个入口** ——
 真时钟 + stdin/stdout 命令通道，取代固定脚本。**共享这份清单本身就是重点**，
 两个入口不可能编到不同的固件。
 

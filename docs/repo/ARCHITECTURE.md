@@ -24,7 +24,7 @@
 
 ⚠️ **这里刻意不写任何一条本机的实际路径** —— 这个仓会被 clone 到别处。**这台机器上每一项解析成了什么，问 `$TEST` 里的 `python tools/common.py --probe`**。
 
-`$TEST` 的脚本只认 `$TEST/config/machine.py`（gitignored，由 `$TEST/tools/init_machine.py` 探测生成），它的 selfcheck 的 **ENV** 一步会把实际解析到的路径全部打出来。PortTool 的在 `$PORTTOOL` 的 `tools/local.json`（`tools/build.sh find-tools` 生成）；bootloader、板卡包、IAPTool 的部件测试不要本机配置（决策 78）。
+`$TEST` 的脚本只认 `$TEST/config/machine.py`（gitignored，由 `$TEST/tools/init_machine.py` 探测生成），它的 selfcheck 的 **ENV** 一步会把实际解析到的路径全部打出来。PortTool 的在 `$PORTTOOL` 的 `tools/local.json`（`start.sh find-tools` 生成）；bootloader、板卡包、IAPTool 的部件测试不要本机配置（决策 78）。
 
 `$CORE_LIVE` 末尾是板卡包版本号，**发版会变**，所以任何地方都不写死它；`$A15/packages/OpenPLC_Alpha/tools/STM32Tools/<版本>` 里那个是随包分发的 IAPTool 版本，两个号互相独立。
 

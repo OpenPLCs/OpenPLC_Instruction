@@ -1455,7 +1455,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 >
 > **面板上的文字默认中文、可选 English / Deutsch，三种都说大白话；固件 printf、`OK`/`ERR` 应答、两个 exe 的 stdout、日志和导出的文件仍然是英文**（[DECISIONS.md 第 11、82 条](../../tables/DECISIONS.md)）。
 
-**交付包**（`$PORTTOOL/tools/build.sh deliver` 打出 `Output/delivery/`，代码在 `$PORTTOOL/tools/ptbuild/`，`start.cmd`、`start.sh`、README 正文的模板在 `$PORTTOOL/tools/delivery/`）里有什么。Windows 和 Linux 的文件放在同一个文件夹，平台无关的文件只有一份（用户 2026-10-16 定）；macOS 暂不进包：
+**交付包**（`$PORTTOOL/start.sh deliver` 打出 `Output/delivery/`，代码在 `$PORTTOOL/tools/ptbuild/`，`start.cmd`、`start.sh`、README 正文的模板在 `$PORTTOOL/tools/delivery/`）里有什么。Windows 和 Linux 的文件放在同一个文件夹，平台无关的文件只有一份（用户 2026-10-16 定）；macOS 暂不进包：
 
 | 文件 | 从哪来 | 缺了怎样 |
 |---|---|---|
@@ -1463,13 +1463,13 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | `PortTool.exe`、`start.cmd`、`README.*.html`、`plans/` | 本仓 | 不打包 |
 | `PortTool`、`start.sh` | Linux 版：`$PORTTOOL` 的 `Output/bin/linux/PortTool`；`start.sh` 是 `start.cmd` 的 Linux 版（UTF-8、LF），一开头给 `PortTool`、`stage6/IAPTool`、`porttool_simboard` 补可执行位，所以说明里只写 `bash start.sh` | 不打包 |
 | `porttool_simboard.exe` | 模拟板（C 外壳 `$PORTTOOL/src/simboard/c/`，打包时现编进 `Output/bin/windows/`）；放在 `PortTool.exe` 旁边，`simboard.Find` 先找 exe 旁边，所以交付包拷到哪都能选「sim」（决策 112） | 不打包 |
-| `porttool_simboard` | Linux 模拟板：打包时用 zig cc 交叉现编进 `Output/bin/linux/`（同 `tools/build.sh sim --os linux`），静态链接 | 不打包 |
+| `porttool_simboard` | Linux 模拟板：打包时用 zig cc 交叉现编进 `Output/bin/linux/`（同 `start.sh sim --os linux`），静态链接 | 不打包 |
 | `stage6/bootloader.hex` | `$BOOT/Debug/OpenPLC_BootLoader.hex`；同目录的 `.elf` 带工装命令表（`pt.caps`）就拒打包 | 不打包 |
 | `stage6/IAPTool.exe` | `$TOOL/Output/windows/IAPTool.exe`（`$TOOL` 的 `build.py` 编出、也是装进板卡包的那份） | 不打包 |
 | `stage6/IAPTool` | Linux 版：`$TOOL/Output/linux/IAPTool` | 不打包 |
 | `stage6/FixtureDemo.ino.bin` | 打包时用 `arduino-cli` 从板卡包例程 `FixtureDemo` 现编（`$PORTTOOL` 的 `tools/local.json` 的 arduino-cli 和它的配置，FQBN 从 `$CORE_REPO/tests/_common.py` 读，同 `$CORE_REPO/tests/examples_build/build.py`） | 不打包 |
 
-**版本号**（[决策 120](../../tables/DECISIONS.md)，改决策 110、112）：上位机（`$PORTTOOL/src/cmd/porttool/main.go` 的 `version`，面板顶上写「上位机 X」）和工装固件（`$BOOT/TestCase/porttool/porttool.c` 的 `PORTTOOL_VERSION`，`tools/build.sh fixture` 记进 `Output/fixture/VERSION`、镜像按它命名）**前两位一致**，表示一套；第三位各自修小问题时各自升；两边能力有变时一起升次版本，给研发测试加命令、加项这类改进只升第三位。连上板子后前两位不一致，面板顶上提醒「上位机和固件不是一套」。打包时 `tools/build.sh deliver` 查三件：两边前两位一致；镜像 `.bin` 的 SHA-256 变了而固件版本号和 `$PORTTOOL/tools/shipped_fixture.json` 里记的一样，拒绝；上位机源码（`src/` 下除 `*_test.go`、`src/plans/`、`src/simboard/c/` 以外的文件，含 `web/`，加 `go.mod` / `go.sum`，按路径排序算 SHA-256）变了而上位机版本号一样，拒绝。后两条不过时，菜单里让人选「内部测试照打」或「不打」，命令行加 `--internal` 照打；内部测试的包不更新 `shipped_fixture.json`，正式发版仍要升版本号（用户 2026-10-20）。拦下时列出要改版本号的每一处（`文件:行`），固件那边含 `FixtureDemo` 的 `FX_PROTOCOL_VERSION`（板卡包 live 和 repo 两份），是在这几个位置里搜当前版本号得出的，不是写死的清单（用户 2026-10-20）。T4-01 的测试不写死版本号，从 `caps_golden.txt` 读；黄金文件由 `TestCase/test.sh t4-01` 按 `porttool.c` 重写，不用手改。比 `.bin` 不比固件源码：同一份源码两次编出来一样（2026-10-13 核过）；比 Go 源码不比 exe：Go 编出的 exe 默认带构建路径，不能逐字节复现。
+**版本号**（[决策 120](../../tables/DECISIONS.md)，改决策 110、112）：上位机（`$PORTTOOL/src/cmd/porttool/main.go` 的 `version`，面板顶上写「上位机 X」）和工装固件（`$BOOT/TestCase/porttool/porttool.c` 的 `PORTTOOL_VERSION`，`start.sh fixture` 记进 `Output/fixture/VERSION`、镜像按它命名）**前两位一致**，表示一套；第三位各自修小问题时各自升；两边能力有变时一起升次版本，给研发测试加命令、加项这类改进只升第三位。连上板子后前两位不一致，面板顶上提醒「上位机和固件不是一套」。打包时 `start.sh deliver` 查三件：两边前两位一致；镜像 `.bin` 的 SHA-256 变了而固件版本号和 `$PORTTOOL/tools/shipped_fixture.json` 里记的一样，拒绝；上位机源码（`src/` 下除 `*_test.go`、`src/plans/`、`src/simboard/c/` 以外的文件，含 `web/`，加 `go.mod` / `go.sum`，按路径排序算 SHA-256）变了而上位机版本号一样，拒绝。后两条不过时，菜单里让人选「内部测试照打」或「不打」，命令行加 `--internal` 照打；内部测试的包不更新 `shipped_fixture.json`，正式发版仍要升版本号（用户 2026-10-20）。拦下时列出要改版本号的每一处（`文件:行`），固件那边含 `FixtureDemo` 的 `FX_PROTOCOL_VERSION`（板卡包 live 和 repo 两份），是在这几个位置里搜当前版本号得出的，不是写死的清单（用户 2026-10-20）。T4-01 的测试不写死版本号，从 `caps_golden.txt` 读；黄金文件由 `TestCase/test.sh t4-01` 按 `porttool.c` 重写，不用手改。比 `.bin` 不比固件源码：同一份源码两次编出来一样（2026-10-13 核过）；比 Go 源码不比 exe：Go 编出的 exe 默认带构建路径，不能逐字节复现。
 
 ### C.4.1 面板的三种语言怎么做（决策 82）
 

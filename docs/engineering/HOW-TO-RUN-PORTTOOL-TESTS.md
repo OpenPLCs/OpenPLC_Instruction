@@ -3,7 +3,7 @@
 PortTool 仓的测试都在 `$PORTTOOL/TestCase/` 下，入口是本仓自己的菜单 `TestCase/test.sh`（Windows 上在 Git Bash 里跑；带参数不出菜单）：
 
 ```
-tools/build.sh find-tools   # 第一次：探测本机工具，写 tools/local.json
+start.sh find-tools   # 第一次：探测本机工具，写 tools/local.json
 TestCase/test.sh all        # go test（含面板词典检查）/ go vet / T4-01 / T4-05 / T4-02（接模拟板）；quick 跳过 T4-02
 ```
 
@@ -66,8 +66,8 @@ T4-02 是 `go run` 的程序（chromedp 驱动 Chrome），不是 `go test`：�
 **它是什么**：`TestCase/porttool/` 那些 `.c` 原样编成的 PC 程序，只换掉外设 stub 和最外层 main。命令解析、`pt.caps`、会话逻辑、帧格式、版本号全是固件那份源码，所以固件改了它编不过 —— **不会漂移**。设计理由见 `$PROD/docs/tables/DECISIONS.md` 第 29 条。
 
 ```bash
-tools/build.sh sim                                        # 编本机的，产出 Output/bin/windows/porttool_simboard.exe
-tools/build.sh sim --os linux                             # 用 zig 交叉编，产出 Output/bin/linux/porttool_simboard（另有 darwin、darwin-arm64）
+start.sh sim                                        # 编本机的，产出 Output/bin/windows/porttool_simboard.exe
+start.sh sim --os linux                             # 用 zig 交叉编，产出 Output/bin/linux/porttool_simboard（另有 darwin、darwin-arm64）
 porttool                                                  # 面板的端口列表里选 "sim"
 porttool run --port sim --yes src/plans/station6-poweron.json
 go run ./TestCase/host/porttool_panel --port sim          # T4-02，不用板子

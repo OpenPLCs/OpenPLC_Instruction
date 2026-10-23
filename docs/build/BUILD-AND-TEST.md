@@ -1,6 +1,6 @@
 # 构建与测试
 
-路径变量（`$IDE`、`$CORE_LIVE`、`$TOOL` 等）的定义见 [../repo/ARCHITECTURE.md](../repo/ARCHITECTURE.md) 的「路径变量」。测试要的本机路径由 `$TEST/tools/init_machine.py` 探测生成（PortTool 的在 `$PORTTOOL` 的 `tools/local.json`，由 `tools/build.sh find-tools` 生成）；bootloader、板卡包、IAPTool 的部件测试不要本机配置（决策 78）。
+路径变量（`$IDE`、`$CORE_LIVE`、`$TOOL` 等）的定义见 [../repo/ARCHITECTURE.md](../repo/ARCHITECTURE.md) 的「路径变量」。测试要的本机路径由 `$TEST/tools/init_machine.py` 探测生成（PortTool 的在 `$PORTTOOL` 的 `tools/local.json`，由 `start.sh find-tools` 生成）；bootloader、板卡包、IAPTool 的部件测试不要本机配置（决策 78）。
 
 > **写路径一律用 `/`。** Windows 的 .NET 路径 API 全都接受正斜杠，Linux 不接受反斜杠 —— `/` 是唯一两边都对的写法。可执行文件后缀（`.exe` 或空）不要写死，`$TEST` 的脚本里用 `common.py` 的 `EXE`。
 

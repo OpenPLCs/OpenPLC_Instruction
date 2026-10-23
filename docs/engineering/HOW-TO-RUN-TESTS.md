@@ -20,7 +20,7 @@
 
 ## `$TEST` 的本机配置
 
-⚠️ **机器相关的路径只允许出现在 `$TEST/config/machine.py`**（PortTool 的在 `$PORTTOOL` 的 `tools/local.json`，由 `tools/build.sh find-tools` 生成）。它是 `tools/init_machine.py` 生成的，不要手写、也没有模板可抄；需要新的本机路径时，把它连同探测方式加进那个脚本的 `SETTINGS` 表。
+⚠️ **机器相关的路径只允许出现在 `$TEST/config/machine.py`**（PortTool 的在 `$PORTTOOL` 的 `tools/local.json`，由 `start.sh find-tools` 生成）。它是 `tools/init_machine.py` 生成的，不要手写、也没有模板可抄；需要新的本机路径时，把它连同探测方式加进那个脚本的 `SETTINGS` 表。
 
 **上板脚本按 UID 找板子，不记 IP**（用户 2026-10-13 定）：`config/machine.py` 记板子的 `BOARD_UID`，脚本经 `common.board_ip()` 广播 `openplc_discover`、取 UID 相符那条回复的 IP（最多等 20 秒）。理由：板子 IP 由 DHCP 给、会变。`BOARD_IP` 只作覆盖用，填了就不发现，留给广播过不去的网络；脚本的 `--ip` 优先于两者。
 

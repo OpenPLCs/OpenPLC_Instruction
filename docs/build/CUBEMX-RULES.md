@@ -43,7 +43,7 @@ stm32cubeidec.exe … -D PORTTOOL_ENABLE=1 -E PLC_LD_SCRIPT=STM32H743IIKX_FLASH_
 
 **和 `PORTTOOL_ENABLE` 同一个原则**（[DECISIONS.md 第 14 条](../tables/DECISIONS.md)）：**只活在要它的那一次构建里，不写进工程文件**。所以随手编一次、或者在 IDE 里点一下构建，出来的都还是 bootloader。
 
-⚠️ **在 IDE 里怎么点都编不出工装镜像，这是用户 2026-09-10 要的形状，不要去「修」它。** 工装镜像只有一条路：`$PORTTOOL` 里的 `tools/build.sh fixture`（决策 76）。它把 `$BOOT` 的源码拷进临时目录再编，镜像留在 `$PORTTOOL/Output/fixture/`，不碰 `$BOOT/Debug/` 和 IDE 的 workspace（决策 86）。
+⚠️ **在 IDE 里怎么点都编不出工装镜像，这是用户 2026-09-10 要的形状，不要去「修」它。** 工装镜像只有一条路：`$PORTTOOL` 里的 `start.sh fixture`（决策 76）。它把 `$BOOT` 的源码拷进临时目录再编，镜像留在 `$PORTTOOL/Output/fixture/`，不碰 `$BOOT/Debug/` 和 IDE 的 workspace（决策 86）。
 
 ### 让 CubeMX 不改写这个选项，做不到
 

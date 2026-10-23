@@ -22,7 +22,7 @@
 | CHK-A2 | 主机侧 C 测试（用例 **T1-16**） | 全过 | `$BOOT/tests`：`ctest --preset local -R T1-16`（编译器写在 gitignored 的 `CMakeUserPresets.json`） |
 | CHK-A3 | 整模块静态检查（用例 **H3**） | 无输出 | `$TOOL` 和 `$TEST` 各自：`go vet ./...`（都在各自的 selfcheck 里） |
 | CHK-A4 | bootloader 构建 | **0 errors 0 warnings**，且 `.bin` ≤ **131,072 B**（整个扇区 0，链接脚本 `FLASH LENGTH = 128K`） | `$TEST`：`python tools/build_image.py`（自己按链接脚本判尺寸），或 `python tools/flash_bootloader.py` 的构建阶段 |
-| CHK-A4b | 工装镜像构建 | **0 errors**，只许有那条刻意的 `#warning`，链接用的是 `STM32H743IIKX_FLASH_PORTTOOL.ld`。不设大小上限：工装镜像由 ST-Link 整片写入，不走 IAP | `$PORTTOOL` 里 `tools/build.sh fixture`。⚠️ **2026-09-08 之前这一项是不通过的** —— 溢出 47,608 字节（当时记在已删的第一次上板清单里） |
+| CHK-A4b | 工装镜像构建 | **0 errors**，只许有那条刻意的 `#warning`，链接用的是 `STM32H743IIKX_FLASH_PORTTOOL.ld`。不设大小上限：工装镜像由 ST-Link 整片写入，不走 IAP | `$PORTTOOL` 里 `start.sh fixture`。⚠️ **2026-09-08 之前这一项是不通过的** —— 溢出 47,608 字节（当时记在已删的第一次上板清单里） |
 | CHK-A5 | 烧写 + 启动日志 | 见 [T3-01](#t3-01--启动门禁) | `$TEST`：`python tools/flash_bootloader.py` |
 | CHK-A6 | 设备行为用例 | 全过 | `$TEST`：`TestCase all --ip=<板子IP> --bin=<app.bin> --key=<板子信任的 .pem>` |
 | CHK-A7 | 变体断言（用例 **P4**） | 全过 | `$CORE_REPO`：`python tests/selfcheck.py` |

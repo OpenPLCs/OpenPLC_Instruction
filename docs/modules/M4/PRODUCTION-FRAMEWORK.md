@@ -99,7 +99,7 @@ Tool     ToolFileName      = MK-TMYYMK-01(ADB)_1.3…
 
 **`limit_version` 必须有**：产线测试指南 2.6 要求每站记录「软件 / 限值版本」。方案文件改了就要动这个字段。
 
-**运行时从哪读**：PortTool 找 exe 旁边的 `plans/`，找不到才退回当前目录下的 `src/plans`（从仓库根跑的情况）。`$PORTTOOL/tools/build.sh tool` 每次编 PortTool 都把 `$PORTTOOL/src/plans/*.json` 拷进 `Output/bin/<平台>/plans/` —— **仓库那份是源头，`Output/` 那份是产物，会被下次构建覆盖**；产线自己新写的方案文件留在原地不动。面板只列这个目录里的方案供页头「判据来自哪份方案」选择，不编辑、不运行（[决策 102](../../tables/DECISIONS.md)）。
+**运行时从哪读**：PortTool 找 exe 旁边的 `plans/`，找不到才退回当前目录下的 `src/plans`（从仓库根跑的情况）。`$PORTTOOL/start.sh tool` 每次编 PortTool 都把 `$PORTTOOL/src/plans/*.json` 拷进 `Output/bin/<平台>/plans/` —— **仓库那份是源头，`Output/` 那份是产物，会被下次构建覆盖**；产线自己新写的方案文件留在原地不动。面板只列这个目录里的方案供页头「判据来自哪份方案」选择，不编辑、不运行（[决策 102](../../tables/DECISIONS.md)）。
 
 ### 校准通道（`calibration`）
 

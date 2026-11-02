@@ -97,7 +97,7 @@ flowchart TB
 | `sdram.probe` | `base` `size` `ready` `databus` `addrbus` | 自己按需 `MX_FMC_Init()` —— 工装镜像跑在 Phase 1，那里 FMC 还没起来 |
 | `sdram.sweep` | `ready` `patterns` `words_each` `mismatches` `first_bad` `bad_pattern` `write_ms` `verify_ms` | **整片 64 MiB 四种花样**，产线要的那个「压力测试零错误」。⚠️ 2026-09-08 实测 6.5 s，方案里的 `timeout_ms` 要留够 |
 | `sdram.crc` | `ready` `offset` `bytes` `crc` | 只读，算一段窗口的 CRC32。固件留着，面板和随附方案都不调用（[决策 141](../../tables/DECISIONS.md)） |
-| `sd.probe` | `detected` `ready` `blocks` `block_size` `mib` `v2x` `class` | `detected=0` 是没插卡，`detected=1 ready=0` 是接口 |
+| `sd.probe` | `detected` `ready` `blocks` `block_size` `mib` `v2x` `class` `fs` | `detected=0` 是没插卡，`detected=1 ready=0` 是接口。`fs` 读引导扇区得出（不经 FatFs），MBR 和 GPT 分区都顺着第一个分区去读（[决策 169](../../tables/DECISIONS.md)）：`fat12` / `fat16` / `fat32` / `exfat`；`none` 是没有引导签名（没格式化或读不出）；`unknown` 是有签名但不是这几种 |
 | `sd.integrity` | `mounted` `wrote` `read_back` `identical` `bytes` 两个 CRC `fresult` | 一轮 4 KiB |
 | `sd.put` / `sd.get` / `sd.ls` / `sd.rm` / `sd.eject` | `ok` `name` `size` `crc` `count` `error` | 卡上 `PORTTOOL` 文件夹的文件传递，数据走网口或 USB，见 B.11（决策 120） |
 | `vref` | `src` `mv` `ok` | 模拟基准：`src=int`（片内 VREFBUF 2.5 V，开机默认）或 `src=ext`（VREFBUF 高阻，VREF+ 由外部接入），不带 `src` 只报当前。切换后重量一次 VREF+（`mv`），`ok` 同 `!ain` 的 `ok`。见 B.4「外部基准」（[决策 158](../../tables/DECISIONS.md)） |
@@ -660,7 +660,7 @@ Klemmblock A，Lower Deck。代码 porttool_dout.c（`$BOOT/TestCase/porttool/po
 | | |
 |---|---|
 | **板子做什么** | 收到的每个字节原样、按序送回，不解析。`seq` / `rx` / `miss` 不动（没有板子发的数） |
-| **PC 做什么** | 对端（`ptecho`）带序号尽力发定长包，收回来的逐包核对，一次得出三个数：**速率**（送回的字节 / 时间）、**丢包**（发出未回的包）、**延时**（每包往返，最小 / 平均 / 最大） |
+| **PC 做什么** | 对端（`ptecho`）带序号尽力发定长包，收回来的逐包核对，一次得出三个数：**速率**（送回的字节 / 时间）、**丢包**（发出未回的包）、**延时**（每包往返，最小 / 平均 / 最大）。第一个 `#` 之前收到的字节不核对：那是上一种模式（如 `source` 的 `0x00`）还在路上的残留 |
 | **敲什么** | `pt.start eth mode=mirror` · `pt.start usb mode=mirror`；PC 端在同一时刻开始发（面板按命令里的 `mode=` 切，方案步骤按 `params.mode`） |
 | **帧** | 沿用各自的帧；`usb` 多一个 `drop=`：板子环形缓冲满了丢掉的字节数（只在 `mirror` 下会涨） |
 | **板子丢不丢** | `eth` 不丢：发送缓冲放不下时把收到的数据退给 lwIP，lwIP 稍后重投，TCP 自己限流。`usb` 的 OUT 端点收完立刻重新接收，送回跟不上时只能丢，所以记在 `drop=`；PC 端限制在途字节不超过板子缓冲，正常不会丢 |
@@ -668,6 +668,8 @@ Klemmblock A，Lower Deck。代码 porttool_dout.c（`$BOOT/TestCase/porttool/po
 | **面板上** | 会话那段的结果区摆「电脑这一端量到的」八个数（`/api/state` 的 `links[<port>].flood`，跑着时每来一帧刷新一次）；会话停了留着最后一次的数，因为停的同时 PC 端就不发了。对端在会话起来之后才接上（`eth` 要等板子拿到 IP，`usb` 要等 CDC 枚举），所以**接上时跟随会话当时的模式**，不然 `mirror` 下 PC 端还在回送、一个包都不发 |
 
 ⚠️ **mirror 下 PC 端不能再回送**：板子已经在回送，两头都回会来回打转。
+
+**`eth` 开会话先清口**：`pt.start eth` 监听之前，先 abort 板子上还绑在这个端口的旧连接（上一个会话没关完的、在 TIME_WAIT 的），关客户端连接时 `tcp_close` 失败也直接 abort。不然 lwIP 报 `port … is already bound`，要等那条连接自己超时（几分钟）或复位才好；2026-11-02 真板上连跑网口收发时偶尔出现。lwIP 没开 `SO_REUSE`，那是 bootloader 共用的配置，不为工装改。
 
 **上下行分开测**（[决策 151](../../tables/DECISIONS.md) 第 1 条）：回送速率是两个方向挤在一条线上的结果，看不出哪个方向慢，所以另用两种模式各测一个方向。
 
@@ -721,12 +723,16 @@ Klemmblock A，Lower Deck。代码 porttool_dout.c（`$BOOT/TestCase/porttool/po
 
 | | |
 |---|---|
-| **数据走哪** | `eth` 或 `usb` 会话的 `mode=file`：会话不发计数，收到的字节交给 SD 写，读出的文件字节从这条线发回。控制口只走命令和结果 |
+| **数据走哪** | `eth` 或 `usb` 会话的 `mode=file`：会话不发计数，收到的字节交给 SD 写，读出的文件字节从这条线发回。控制口只走命令和结果。走 USB 时电脑这头用左边「板子 USB」选的口（选「自动」时按 USB 编号找，[决策 168](../../tables/DECISIONS.md)），在会话开始**之后**才去开：板子的 USB 口要等 `pt.start usb` 才出现，最多等 5 s |
 | **写** | `pt.start eth mode=file`（或 `usb`）→ `pt.run sd.put name=<名> size=<字节>` 回 `OK sd.put ok=1 …`（打开 `0:/PORTTOOL/<名>` 等数据）→ PC 每次最多发 4096 字节，等板子在数据线上回 `A<已写总数>\n` 再发下一块 → 写满 `size` 后板子关文件、整份读回算 CRC32，报 `!sd.put name=… size=… wrote=… crc=0x… ok=1`。10 s 没收到数据报 `ok=0 error=timeout` |
 | **读** | `pt.run sd.get name=<名>` 回 `ok=1 size=… crc=0x…`，随后板子从数据线发出整份文件，发完报 `!sd.get name=… sent=… ok=1` |
 | **列 / 删 / 拔** | `sd.ls`：每个文件一行 `!sd.file name=… size=… date=YYYY-MM-DD time=HH:MM`，再回 `ok=1 count=N`；`sd.rm name=…`；`sd.eject`：停掉进行中的传递、卸下卷，之后可以拔卡（下一个 `sd.*` 自动重新挂） |
 | **名字** | 只收 ASCII，1–64 个字符，不能有 `/\:*?"<>|`：FatFs 的代码页是 850（`$BOOT/TestCase/common/ffconf.h`），中文名会乱 |
 | **判** | 上位机判：写入字节数等于文件大小，板子读回的 CRC32 等于电脑上算的 |
+
+**文件的修改时间**：取板子 RTC 的日期时间（和连接区显示的板子时间同一个钟）；RTC 还没初始化时先初始化，和 `rtc.read` 一样；起不来才记 2000-01-01 00:00。不提供时 FatFs 记 0，列出来是无效的「1980-00-00」（2026-11-03 真板上看到）。
+
+⚠️ **读写 SD 块时屏蔽 USB 中断**：工装读写 SD 卡是 CPU 轮询喂 SDMMC 的 FIFO，中途被 USB 中断打断就欠载 / 溢出（`hsd1.ErrorCode` 报 `0x10` 发送欠载，2026-11-03 真板实测：经 USB 传文件第一块就写失败，经网口正常）。所以每次 `HAL_SD_ReadBlocks` / `HAL_SD_WriteBlocks` 期间只关 `OTG_FS_IRQn`，完了马上恢复；这段时间主机发来的包由 USB 硬件回忙、主机重发，不丢数据；系统时钟中断不关，HAL 的超时照常（`$BOOT/TestCase/SD/sd_test.c`）。
 
 ⚠️ **模拟板只有网口这条路**：模拟板的 USB 是假的 CDC，电脑上没有对应的串口；网口走本机 TCP 照样跑全程。
 
@@ -942,8 +948,8 @@ flowchart LR
 | 烧完复位备份域 | `-r32` 读出 `PWR_CR1`，再在**同一次**调用里 `-w32` 写回它或上 `DBP`、`RCC_BDCR` 写 `BDRST` 再写 0、`-rst`（[决策 157](../../tables/DECISIONS.md)）：LSE 靠电池跨复位一直在跑，驱动档只能在它停着时改，复位后 bootloader 下次开机才按中低档起振。必须同一次调用：`mode=UR` 每次连接都系统复位，`DBP` 会被清掉。代价是 RTC 时间和备份寄存器清零 |
 | 恢复出厂（第 6 步结尾；没通过、停下也做） | 读出校准值区 8 KiB → 先存进 `calibration/<UID>/calarea.readback.<YYYYMMDD-HHMMSS>.bin` → 擦扇区 1–15 → 写回校准值区 → 读回比对 |
 | 恢复出厂没做成 | 第 6 步的 `reason` 写 `board still carries the production root`，面板红字「这块板带着产线的根」（决策 96） |
-| 写回只写非空格子 | 只写不全是 `0xFF` 的 32 字节 flash word，连续的并成一段：空格子要保持擦除状态，bootloader 以后才能往根区和 metadata 里 append（格子大小见 SECTOR-15.md「布局」） |
-| 擦扇区的写法 | `-e 1 2 … 15` 逐个列扇区号。⚠️ 未在本板核实：CubeProgrammer 对 H743 第二个 bank 是否按 8–15 编号 |
+| 写回只写非空格子 | 只写不全是 `0xFF` 的 32 字节 flash word，连续的并成一段，所有段放进**一个**只含这些段的 HEX 文件、一次 `-w` 写进去（CubeProgrammer 每次 `-w` 都先擦它要写的整个扇区，分几次写只有最后一段留得下，2026-11-03 真板实测）：空格子要保持擦除状态，bootloader 以后才能往根区和 metadata 里 append（格子大小见 SECTOR-15.md「布局」） |
+| 擦扇区的写法 | `-e 1 2 … 15` 逐个列扇区号。扇区按 0–15 连续编号，第二个 bank 是 8–15：`-e 15` 擦的是 `0x081E0000`，第一个 bank 的扇区 7 不动；`-rst` 之后工装固件自己重新跑起来；`start.sh flash` 用 `-d` 烧工装，扇区 15 前后逐字节一致（2026-11-03 真板实测） |
 
 **第 6 步的输入**（[决策 103](../../tables/DECISIONS.md)；实现在 `$PORTTOOL/src/ptstages/userlevel.go`）：
 
@@ -1108,6 +1114,8 @@ flowchart LR
 | 两组「开始」 | 卡片分两组（决策 115）：上组——目录里 `once`、问人、看 60 秒的项，没有组头；下组「按时长跑」——其余项，组头有测试时长。面板上不写「只测一次」：组头、卡片徽章、配置页提示里都没有这几个字（[决策 151](../../tables/DECISIONS.md) 第 2 条）。研发 AI / AO / DI / DO 四张卡不分这两组、没有「开始」（[决策 137](../../tables/DECISIONS.md)）。跑法照「测试项怎么跑」 | 一次性的检查和要跑一段时间的项分开，点下去就知道要跑多久；只测一次的项一次跑一张，少一步勾选 |
 | ↳ 研发和完整测试里 | 研发测试里上组不要勾选框，每张卡片名字右边一个「开始」，只跑这一张，跑的时候这张卡的按钮变「停止」、其余灰掉（决策 116）；下组照旧勾选、组头时长和「开始（N 项）」，只跑本组勾了的（`/api/lib/start` 只把本组的项标 `on`），按选的时长跑，跑的时候卡上怎么写见下面「时长测试看得懂」。工装完整测试的子测试里两组只是标题、都留勾选框，组头没有「开始」和时长（[决策 125](../../tables/DECISIONS.md)，时长在第 ② 层） | |
 | 时长测试看得懂 | 研发「按时长跑」组跑起来时，每张在跑的卡右边最上面一块写：正在测什么（项目名 + 目录里「测什么」那一句）、已用 / 总时长（`m:ss` 或 `h:mm:ss`，「一直」只写已用）、第几轮、上一轮的结论和关键数（板子回报的字段，没过的判据先列，最多 4 个）。一轮：一遍遍重跑的项跑完一遍算一轮；一直开着的会话每 60 s 算一轮（写这一轮判了几帧），中途不过立刻记这一轮。不写累计不过几轮：时长段第一次不过就全停。数据在 `ptlib.State.Round`（`/api/lib` 的 `states[id].round`，`total_s` 是总时长）。日志一轮一行（页面在轮数变了时写一行「面板」类的摘要）；时长测试进行中板子的采样帧和 OK 应答归「时长测试逐帧」那一类，默认不显示，勾上就回来，导出照样全有。继电器开合不算轮，卡上照旧写「已开合 k / N」 | 用户：「选择时长的测试，不知道测量时间和测试内容。（log快速的增加，但是对于人来说没什么可读性）」（[决策 151](../../tables/DECISIONS.md) 第 2 条） |
+| 强制释放端口 | 研发测试右边「开始」那一排最后一个按钮，什么时候都能点（`POST /api/release`）：停掉正在跑的测试项和命令框开的会话，关掉面板开着的所有对端口，日志里一口一句说关了哪个；关完还打不开的口（被别的程序占着）也说出来 | 测试结束时对端本来就关，这个按钮管关不掉的时候（[决策 168](../../tables/DECISIONS.md)） |
+| 按住时不重画 | 鼠标在右边按下到松开之间，右边不重画；松开、点击生效后再补画一次（`web/js/shell.js` 的 `renderRight`） | 右边随数据整块重画，按下和松开落在新旧两个按钮上时浏览器不算点击，按钮就像没反应 |
 | AI / AO 卡片 | 研发测试里每个端口一张（[决策 117](../../tables/DECISIONS.md)，取代决策 114 的四张），做法见下面「AI / AO 卡片」 | 一路从设点、读数、误差到拟合、存档在一张卡上看完；点「开始」才读、按一下才出信号（决策 137）；校准和实测各自起停、不用勾，看按钮颜色就知道哪块在读、在出（决策 151） |
 | DI / DO 卡片 | 研发测试里每个端口一张（[决策 119](../../tables/DECISIONS.md)），样子同 AI / AO 卡片，做法见下面「DI / DO 卡片」 | 四类端口一个样子，人学一次（2026-10-13 用户）；输入点「开始读取」才读、输出按一个按钮、通道用复选框（决策 137）；逐路电平一次看全八路，不用先勾（决策 151） |
 | 页面记住什么 | 每种测试各记各的，切端口、切测试项、切测试类型、刷新页面、换语言、重开面板都不丢（2026-10-13 用户）：三种配置照旧记在 `porttool_stagecfg.json`；研发测试（勾选、可调参数、两组时长、AI / AO 的点和目标值和表上读数、DI / DO 的标准值、AI / AO / DI / DO 各表每路的勾选（`chk|<表>|<路>`）、DO 翻转计数填的次数和 PWM 行）和工装完整测试勾的步记在 exe 旁边的 `porttool_pagememo.json`，按测试类型分开存（`/api/memo`），一改就存；不分测试类型的界面状态（左栏宽度、「显示蓝牙串口」）记在同一个文件的 `ui` 一节。面板在本机记的界面状态只进这一个文件，不用浏览器存储（[决策 162](../../tables/DECISIONS.md)）；研发每个端口最近一次测试的时间、结果和日志也记在这里（下面「离开端口页」）。不记：安规的 SN 和答案（每块板不同） | 人切来切去时已选的不该没了 |
@@ -1325,8 +1333,8 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | `pt.caps` 的日志 | 面板发的 `pt.caps` 和它的应答（`OK porttool=` / `port=` / `vals=` / `limits=` / `terms=` / `run=` 行）也归「板子自述」：默认不显示，日志里照留、导出照留；人在命令框里敲 `pt.caps` 时自动勾上这一类（`web/js/core.js:87-93`、`:206-210`） | 面板每条命令之后都重读 `pt.caps`（`panel.go:640-648`），不藏会刷掉日志；人自己敲了就是要看 |
 | 日志整块重绘 | 暂停后继续、清空、改筛选、自动勾上 `pt.caps` 时，最近 4000 行一次拼进一个 DocumentFragment 再挂上，不逐行追加（`web/js/core.js:128-135`） | 逐行追加每行都触发一次排版，4000 行会把页面卡住好几秒 |
 | 板子 USB | 板子 USB 的序列号由芯片 UID 算出（`%08X%04X`，前 8 位是 UID 第 0、2 字之和，后 4 位是第 1 字的高 16 位），面板按这块板的 UID 自动选它自己的口；手选到序列号属于别的板的口拒绝，说出它属于哪块板（UID 末 6 位）；标准机反过来也一样，选到被测板的 USB 口拒绝；没有序列号可比的口照常可选（[决策 163](../../tables/DECISIONS.md)） | 一台电脑接几块板时，同型号的口只有序列号能分开 |
-| 板子 USB、RS485、CAN 转换器 | RS485、CAN 两行先由面板自动识别（下面「转换器自动识别」），认不出来才手选。选 COM 口、绑定 / 解绑，走 `/api/link`、`/api/unlink`（每个连接是一个 `loop=link` 端口的对端）。绑上后这一行写收了几行、送回几行，出错时写原文；数每秒随 `GET /api/conn` 的 `links` 更新 | 一种绑定机制，研发卡片和连接区共用；绑上不通时要看得到原因（决策 106） |
-| 网口 | 连上控制口后面板自己探板子地址：发 `pt.start eth`（照板子当前参数，默认 DHCP），等 eth 帧里出现非 `0.0.0.0` 的 `ip`（最多 15 s），再 `pt.stop eth`；lwIP 停会话后照常跑，地址一直有效。这一行写地址（模拟板写「本机 127.0.0.1（模拟板）」），探不到写原因（没网线 / 没 DHCP 服务器要用固定地址）；探的时候「开始」等它结束。之后任何 eth 帧里的地址也更新这一行，换控制口时清掉。地址有了就能连 TCP 对端，同样走 `/api/link`（`tcp`） | 板子只在 eth 会话起来后才有地址，不该要人先跑一遍网络测试才知道；用固件现有命令，不改固件（2026-10-13 用户） |
+| 板子 USB、RS485、CAN 转换器 | 只选不接（[决策 168](../../tables/DECISIONS.md)）：RS485、CAN 两行先由面板自动识别（下面「转换器自动识别」），认不出来才手选。下拉一改就走 `/api/link {port, com}` 记进 `porttool_ports.json`，选「不用」走 `/api/unlink` 清掉，都不打开这个口。测试项开始时按选的口打开对端、这一项结束就关掉；命令框里手敲 `pt.start <口>` 时同样打开、`pt.stop` 时关掉，开着时这一行写收了几行、送回几行，出错时写原文（`GET /api/conn` 的 `links`） | 同一个串口不能开两次，只在测试期间占用就不会和测试互相挡（决策 168）；开着不通时要看得到原因（决策 106） |
+| 网口 | 连上控制口后面板自己探板子地址：发 `pt.start eth`（照板子当前参数，默认 DHCP），等 eth 帧里出现非 `0.0.0.0` 的 `ip`（最多 15 s），再 `pt.stop eth`；lwIP 停会话后照常跑，地址一直有效。这一行写地址（模拟板写「本机 127.0.0.1（模拟板）」），探不到写原因（没网线 / 没 DHCP 服务器要用固定地址）；探的时候「开始」等它结束。之后任何 eth 帧里的地址也更新这一行，换控制口时清掉。地址有了，测试和命令框里的 `pt.start eth` 就照它连 TCP 对端；这一行没有按钮（决策 168） | 板子只在 eth 会话起来后才有地址，不该要人先跑一遍网络测试才知道；用固件现有命令，不改固件（2026-10-13 用户） |
 | RS232 | 不可选，写明 RS232 就是控制口；测 RS232 的卡片上选波特率，测时控制口一起切（B.7） | 决策 104 |
 | 标准机 | 第二条板子连接，见下表；端口可选模拟板。下拉里另有「不用」，选了写 `/api/stagecfg` 的 `ref_unused`，连上标准机时清掉。连上后这一行有「设置标准机」，打开下面「标准机设置页」 | 决策 103；「不用」时要标准机的项勾着不让开始，CAN 对发换成上位机（[决策 135](../../tables/DECISIONS.md)） |
 | ST-Link | 打开面板和点「刷新」时用 `STM32_Programmer_CLI --list st` 查有没有探针（`src/stlink/probe.go`，只读）；没装 CubeProgrammer 也说出来 | 列探针要一两秒，不每秒查 |
@@ -1341,10 +1349,10 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | 不碰的口 | 蓝牙串口（名字里有 Bluetooth / 蓝牙 / 藍牙，或 Linux 的 `rfcomm`）、ST 的 USB 编号 `0483:*`（ST-Link 虚拟串口，`5740` 是板子自己的 USB）、CANable `16D0:117E`（它走 CAN 那条）；另外控制口、标准机的口、别的连接行绑着的口也不碰 | 这些口一看就不是要找的转换器；蓝牙口一打开要卡好几秒 |
 | 自动认 RS485 / CAN | 控制口连上后自动跑一次，连接区另有「重新识别」。剩下的候选串口按顺序编号 1、2、3…，CANable 接着编；板子跑 `pt.run match ms=3000`（A.3），PC 在板子打出 `MATCH_TEST:` 那行后（最多等 1 s）每 300 ms 发一轮：串口以 115200 发 `OPLC-<n>
 `、彼此错开 15 ms，CANable 以 500 kbit/s 发一帧 ID `0x5A5`、数据 `OPLC-<n>`。板子听完报两个端子各收到哪些号，面板按号对回口 | 转换器型号不可控，只有板子说得出哪个转换器接在哪个端子上（决策 146）；错开发是为了两个 RS485 转换器接在一对线上时不撞成乱码，那样能报出「两个都在」 |
-| 认出来了 | RS485 端子只收到一个串口的号：RS485 一行自动接上这个口（同手动「接上」，记进 `porttool_ports.json`，方案和 `porttool run` 照用）。CAN 端子收到 CANable 的号：CAN 一行写这个 CANable 接在 CAN 端子上，不绑定、不存盘 | CAN 的对端每次按 USB 编号找 CANable（C.3.7），存了没人读 |
-| 没认出来 | 每个端子一句大白话：什么都没收到（查接线和转换器电源）；收到了东西但不是暗号（RS485 波特率不对或 A / B 接反，CAN 波特率不对或 H / L 接反）；收到两个口的号（两个转换器接在同一对线上）；收到别的端子那类转换器的号（如「COM12 的暗号出现在 CAN 端子上」：串口转换器接到了 CAN 端子）；电脑上没有 CANable；端子没起来（`_ok=0`）。哪个端子都没出现的口另列一句。没认出来的那一行退回手选（下拉 +「接上」），原因写在下拉上面 | 决策 146「兜底」 |
+| 认出来了 | RS485 端子只收到一个串口的号：RS485 一行自动选上这个口（同手选，记进 `porttool_ports.json`，方案和 `porttool run` 照用，不打开它）。CAN 端子收到 CANable 的号：CAN 一行同样自动选上这个 CANable、记进 `porttool_ports.json`，不打开它 | 测试按左边选的口开对端（决策 168）；CAN 一行选「自动」时才按 USB 编号找 CANable（C.3.7） |
+| 没认出来 | 每个端子一句大白话：什么都没收到（查接线和转换器电源）；收到了东西但不是暗号（RS485 波特率不对或 A / B 接反，CAN 波特率不对或 H / L 接反）；收到两个口的号（两个转换器接在同一对线上）；收到别的端子那类转换器的号（如「COM12 的暗号出现在 CAN 端子上」：串口转换器接到了 CAN 端子）；电脑上没有 CANable；端子没起来（`_ok=0`）。哪个端子都没出现的口另列一句。没认出来的那一行退回手选（下拉），原因写在下拉上面 | 决策 146「兜底」 |
 | 手选时拔插 | 有一行在手选时，面板每 2 s 看一次串口列表；识别之后新出现的口（拔下再插上也算）在下拉里标「刚插上」并选中 | 拔插一下转换器，人就知道是哪个口 |
-| 前提 | RS485 或 CAN 会话在跑时板子回 `busy=1`，面板说先停掉再识别；固件里没有 `match` 目标（旧固件）时两行退回手选并写明 | 识别要占用这两个端子 |
+| 前提 | RS485 或 CAN 会话在跑时板子回 `busy=1`，面板说先停掉再识别；固件里没有 `match` 目标（旧固件）时两行退回手选并写明。反过来，识别还没跑完（含连上后排在取地址后面等着的那次）时点「开始」或完整测试，先等识别跑完再开始 | 识别要占用这两个端子，还开着 CANable 和串口转换器；同时开测会报「串口被占」 |
 | 模拟板 | 不碰这台电脑的任何串口：候选是假串口 `SIM-A`、`SIM-B` 和假 CANable `SIM-CAN`，发出的暗号经 `sim.tok` 进模拟板，模拟板按自己的假接线（默认 `SIM-A` 接 RS485、`SIM-B` 不接、`SIM-CAN` 接 CAN，`sim.wiring` 可改）送到端子上，板子那半跑真的 `match` 目标；认出来的口只显示、不绑定（模拟板自己扮演对端） | 面板流程能完整走，同时不往真串口发东西 |
 
 接口：`POST /api/match {}` 重新识别（在后台跑，结果随 `GET /api/conn` 的 `match` 回来：`{"running", "at", "sim", "terms": {"rs485" / "can": {"ok", "com", "why"}}, "unseen", "skipped": [{"com", "why"}], "error"}`，`skipped` 是没试的口和原因）；`POST /api/match/control {}` 找控制口，回 `{"found", "tried": [{"com", "why"}], "error"}`。
@@ -1439,7 +1447,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | 两条板子连接 | 执行器 `ptseq.Runner` 的 `Board`（被测板）和 `Ref`（标准机）；`porttool run --ref` 接标准机 |
 | 两块模拟板 | 两个模拟板进程，在 PC 这头按「标准机设置」的默认接法接线（不跟着登记变，登记改了以后模拟板上的结果不代表真接线）：标准机的 `!dout` 帧换成被测板的 `sim.din`（DO1–8 → DI1–8）；被测板的 DO1–6 和继电器 RY1–RY6 都通（`!dout` 该路占空比非 0、`!relay` 该路 `ch<n>=1`）时标准机 DIn 读 1，DO7、DO8 直接到标准机 DI7、DI8；停了 DO、停了继电器或断开，另一块读 0 |
 | ↳ 模拟量、CAN 和怎么开 |AO→AI 按默认的同号对接（标准机 AO1 / AO2 → 被测板 AI1 / AI2，被测板 AO1 / AO2 → 标准机 AI1 / AI2）换成 `sim.ain`；模拟板的 AO 只按电流折算（124 Ω 上的电压），电压档的 AO 在模拟板上测不了，结果不代表真板子；CAN 不接（模拟板的 CAN 自己回环）。`porttool run --ref` 用 `simboard.OpenPair` 一起开；面板控制口是模拟板时连标准机选模拟板，`simboard.Link` 把两条接上 |
-| 上位机 CAN | `$PORTTOOL/src/slcan`：CANable 2.0 的 SLCAN 驱动（开通道、收发标准 / 扩展帧、回送），照 `$TEST/tools/can_send.py` 的 `Analyser` 写 |
+| 上位机 CAN | `$PORTTOOL/src/slcan`：CANable 2.0 的 SLCAN 驱动（开通道、收发标准 / 扩展帧、回送），照 `$TEST/tools/can_send.py` 的 `Analyser` 写。配置命令只有回 BEL 才算被拒，等不到回答当作接受：`normaldotcom/canable2` 固件命令成功时一个字节都不回，只有 `V` 回版本号（2026-11-02 实测） |
 | CAN 分析窗口 | 真板子：`slcan.Find` 按 USB 编号找 CANable 开（和 `can.peer` 选电脑同一个找法）；连接区 CAN 那一行绑着它时口被占，卡片报「转换器打不开」。模拟板：`simboard` 在 PC 这头接一条假线 —— 窗口开着时发 `sim.canloop 0` 关掉模拟板 CAN 的自回环，板子的 `!can.tx` 当成分析器收到的帧，分析器发的帧变成 `sim.canrx <ID> <数据>` 送进模拟板，结束时发 `sim.canloop 1`。模拟板不管两边波特率是否一致 |
 | 上位机 KNX | `$PORTTOOL/src/knxusb`：标准 KNX USB HID 接口（64 字节 HID 报告 + KNX USB Transfer Protocol 头）。打开时用 Bus Access Server Feature 服务问支持哪些 EMI，按 cEMI → EMI2 → EMI1 选一种并设成当前 EMI，再切到链路层模式（不切收不到 L_Data），再问总线连没连；协议细节对照 calimero、knxd 的源码核过（规范原文不公开）；发 L_Data.req，收 L_Data.ind / L_Data.con |
 | ↳ HID 读写 | Windows 调系统的 `hid.dll` / `setupapi.dll`（不用 cgo），Linux 读写 `/dev/hidraw*`（默认只有 root 能开，没权限时原样说出来，要加 udev 规则）。macOS 经 purego 调 IOKit 的 IOHIDManager，写报告 2 s 超时同 Windows（不开 cgo，三平台照旧一次交叉编）；没有 Mac，没真跑过 |
@@ -1469,7 +1477,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | `stage6/IAPTool` | Linux 版：`$TOOL/Output/linux/IAPTool` | 不打包 |
 | `stage6/FixtureDemo.ino.bin` | 打包时用 `arduino-cli` 从板卡包例程 `FixtureDemo` 现编（`$PORTTOOL` 的 `tools/local.json` 的 arduino-cli 和它的配置，FQBN 从 `$CORE_REPO/tests/_common.py` 读，同 `$CORE_REPO/tests/examples_build/build.py`） | 不打包 |
 
-**版本号**（[决策 120](../../tables/DECISIONS.md)，改决策 110、112）：上位机（`$PORTTOOL/src/cmd/porttool/main.go` 的 `version`，面板顶上写「上位机 X」）和工装固件（`$BOOT/TestCase/porttool/porttool.c` 的 `PORTTOOL_VERSION`，`start.sh fixture` 记进 `Output/fixture/VERSION`、镜像按它命名）**前两位一致**，表示一套；第三位各自修小问题时各自升；两边能力有变时一起升次版本，给研发测试加命令、加项这类改进只升第三位。连上板子后前两位不一致，面板顶上提醒「上位机和固件不是一套」。打包时 `start.sh deliver` 查三件：两边前两位一致；镜像 `.bin` 的 SHA-256 变了而固件版本号和 `$PORTTOOL/tools/shipped_fixture.json` 里记的一样，拒绝；上位机源码（`src/` 下除 `*_test.go`、`src/plans/`、`src/simboard/c/` 以外的文件，含 `web/`，加 `go.mod` / `go.sum`，按路径排序算 SHA-256）变了而上位机版本号一样，拒绝。后两条不过时，菜单里让人选「内部测试照打」或「不打」，命令行加 `--internal` 照打；内部测试的包不更新 `shipped_fixture.json`，正式发版仍要升版本号（用户 2026-10-20）。拦下时列出要改版本号的每一处（`文件:行`），固件那边含 `FixtureDemo` 的 `FX_PROTOCOL_VERSION`（板卡包 live 和 repo 两份），是在这几个位置里搜当前版本号得出的，不是写死的清单（用户 2026-10-20）。T4-01 的测试不写死版本号，从 `caps_golden.txt` 读；黄金文件由 `TestCase/test.sh t4-01` 按 `porttool.c` 重写，不用手改。比 `.bin` 不比固件源码：同一份源码两次编出来一样（2026-10-13 核过）；比 Go 源码不比 exe：Go 编出的 exe 默认带构建路径，不能逐字节复现。
+**版本号**（[决策 120](../../tables/DECISIONS.md)，改决策 110、112）：上位机（`$PORTTOOL/src/cmd/porttool/main.go` 的 `version`，面板顶上写「上位机 X」）和工装固件（`$BOOT/TestCase/porttool/porttool.c` 的 `PORTTOOL_VERSION`，`start.sh fixture` 记进 `Output/fixture/VERSION`、镜像按它命名）**前两位一致**，表示一套；第三位各自修小问题时各自升；两边能力有变时一起升次版本，给研发测试加命令、加项这类改进只升第三位。连上板子后前两位不一致，面板顶上提醒「上位机和固件不是一套」。打包时 `start.sh deliver` 查四件：要打进去的 Windows、Linux 两个 PortTool 里都有 `main.go` 当前的版本号（`deliver` 只打包不重编，拦下忘了先 `start.sh tool` 的旧 exe，2026-11-02 出过一次）；两边前两位一致；镜像 `.bin` 的 SHA-256 变了而固件版本号和 `$PORTTOOL/tools/shipped_fixture.json` 里记的一样，拒绝；上位机源码（`src/` 下除 `*_test.go`、`src/plans/`、`src/simboard/c/` 以外的文件，含 `web/`，加 `go.mod` / `go.sum`，按路径排序算 SHA-256）变了而上位机版本号一样，拒绝。后两条不过时，菜单里让人选「内部测试照打」或「不打」，命令行加 `--internal` 照打；内部测试的包不更新 `shipped_fixture.json`，正式发版仍要升版本号（用户 2026-10-20）。拦下时列出要改版本号的每一处（`文件:行`），固件那边含 `FixtureDemo` 的 `FX_PROTOCOL_VERSION`（板卡包 live 和 repo 两份），是在这几个位置里搜当前版本号得出的，不是写死的清单（用户 2026-10-20）。T4-01 的测试不写死版本号，从 `caps_golden.txt` 读；黄金文件由 `TestCase/test.sh t4-01` 按 `porttool.c` 重写，不用手改。比 `.bin` 不比固件源码：同一份源码两次编出来一样（2026-10-13 核过）；比 Go 源码不比 exe：Go 编出的 exe 默认带构建路径，不能逐字节复现。
 
 ### C.4.1 面板的三种语言怎么做（决策 82）
 

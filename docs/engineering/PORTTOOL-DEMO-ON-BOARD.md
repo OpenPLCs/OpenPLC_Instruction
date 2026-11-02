@@ -14,7 +14,7 @@
 | # | 做什么 | 怎么算好了 |
 |---|---|---|
 | 1 | **编并烧工装固件**：板子上电、插 ST-Link，在 `$PORTTOOL` 下依次 `start.sh fixture`、`start.sh tool`、`start.sh flash`（或不带参数从菜单选），镜像在交付包里叫 `openplc_fixture_<版本>.hex`；**10-12、10-13 之前的镜像不能用**（缺 RS232 切波特率、DO 正交输出，版本号照[决策 110](../tables/DECISIONS.md)升）。工装镜像从 `0x08000000` 起写，会盖掉 bootloader 和 app 开头（2026-10-13 板上是 bootloader + KNX app），演示完照 [PORTTOOL-FLOW.md](../modules/M4/PORTTOOL-FLOW.md) C.3.5 烧回 bootloader、再用 IAPTool 传 KNX app | 最后一段「烧进板子」没有报错，板子复位 |
-| 2 | **SD 卡格式化成 FAT32 或 exFAT**（MBR 分区）后插进板子；NTFS 板子不认（`fs=` 只认 FAT 和 exFAT，`$BOOT/TestCase/SD/sd_test.c` 的 `sd_fs_from_sector()`；工装 `ffconf.h` 的 `_FS_EXFAT 1`）。2026-10-13 用户说现在的卡已是 exFAT | 第 1 层 SD 那一步看 |
+| 2 | **SD 卡格式化成 FAT32 或 exFAT**（MBR、GPT 分区都行，[决策 169](../tables/DECISIONS.md)）后插进板子；NTFS 板子不认（`fs=` 只认 FAT 和 exFAT，`$BOOT/TestCase/SD/sd_test.c` 的 `sd_fs_from_sector()`；工装 `ffconf.h` 的 `FF_FS_EXFAT 1`、`FF_LBA64 1`）。2026-10-13 用户说现在的卡已是 exFAT | 第 1 层 SD 那一步看 |
 | 3 | **控制口**：USB-232 转换器接板子 RS232 端子，插电脑 | 面板控制口下拉里有这个 COM 口 |
 | 4 | **其余对端**，演示哪项就接哪项：USB 线接板子 USB 口；网线接板子和电脑（电脑网卡要和板子报的 IP 在同一网段）；USB-485 转换器接 RS485；CANable 接 CAN | 面板连接区对应那一行能选到它 |
 | 5 | **人工用的工具**：24 V 电源和几根线（给 DI 加电平）；万用表（量 DO、AO）；信号源（AI1 0–10 V，AI2 0–20 mA） | 摆在手边 |

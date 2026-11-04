@@ -184,10 +184,15 @@ Arduino core 不配这个脚，它停在复位默认值，而**模拟模式断�
 |---|---|---|
 | HSE | `XTAL3` ABM8AIG-25.000MHZ-12-2Z，无源晶体，所以是 `RCC_HSE_ON` 不是 BYPASS。另一颗 25 MHz（`XTAL1` ABM3B）只给以太网 PHY | Bridge 贴片表、BOM |
 | LSE | `XTAL2` ABS07-120-32.768KHZ-T：CL 6.0 pF，ESR 典型 55 kΩ、最大 60 kΩ | Abracon 手册 2021-05-26 版 |
+| HSE 的负载电容 | `C48`、`C49` 各 3.9 pF 到地。型号里的 `-12` 按 Abracon 的命名应是 CL 12 pF，手册没对过 | `$HW/Production/Bridge/1436_01_SCHAE-BR.pdf` 第 5 页、`1436_01_SCHAE-BR.xlsx` |
+| LSE 的负载电容 | `C46`、`C47` 各 1.5 pF 到地，串 `R32`、`R33` 0 Ω | `$HW/Production/Bridge/1436_01_SCHAE-BR.pdf` 第 5 页 |
 | HSI48 不校准的精度 | 30 °C 时 47.5–48.5 MHz（±1%），−40–125 °C 时 −4.5%–+3.5%；USB 全速要求 ±0.25%，所以 **USB 用 HSI48 必须开 CRS** | DS12110 Rev 10 表 46 |
 | LSE 各档能带的晶振 gmcrit 上限 | `LOW` 0.5、`MEDIUMLOW` 0.75、`MEDIUMHIGH` 1.7、`HIGH` 2.7 µA/V | DS12110 Rev 10 表 45 |
 | LSE 驱动档什么时候能改 | **LSE 开着时改不动**，要先关 LSE 再设。rev Y 上两个中档的寄存器编码对调，读写都要按芯片版本换算 | HAL `stm32h7xx_hal_rcc.h:7734`、`:7746`（RM0433 原文没核对） |
 | 本晶振的 gmcrit | 按 AN2867 的 4·ESR·(2πF)²·(C0+CL)²（C0 取分销商标的 1.2 pF）：典型 0.48、最大 **0.53 µA/V**，**`LOW` 档不够** | 计算 |
+| 各档起振用时（实测） | 2026-11-03 板子 UID …0029：`LOW` / `MEDIUMLOW` / `MEDIUMHIGH` / `HIGH` 都是 130–132 ms，每档 2 次都起振、没有 `fallback`。四档几乎一样，多半是 LSERDY 本身的固定延时（约 4096 个 LSE 周期 = 125 ms），RM0433 原文没核对 | PortTool 晶振页 `rtc.lsemargin` |
+| 各档频率偏差（实测，对 HSE 量） | 同一块板：`LOW` −31.3、`MEDIUMLOW` −43.2、`MEDIUMHIGH` −60.4、`HIGH` −90.6 ppm，驱动档越高频率越低。`MEDIUMLOW` 连量 10 分钟（594 次）−43.35 到 −42.90 ppm，漂移 0.45 ppm。读数含 HSE 自己的误差 | PortTool 晶振页 `rtc.lsemargin`、`rtc.lsefreq` |
+| 两颗晶振对真实时间（实测） | 同一块板、`MEDIUMLOW`：RTC 对 NTP 时间快 **+44 ppm**（±10，量了 31 分钟），即 LSE 快约 44 ppm；与上一行合起来，HSE 快约 87 ppm。两颗都超出 ±20 ppm 的容差，方向都是偏快，和两组负载电容都比晶振要求的小对得上（这个因果没验证） | `$PORTTOOL/TestCase/tools/rtcdiag.py`，2026-11-03 |
 | 480 MHz | 只有 rev V 芯片能跑，且结温不超过 105 °C。本板芯片是 rev Y 还是 rev V **没核实** | DS12110 Rev 10 第 22 页脚注 |
 
 ## SRAM4 的 no-init 机制

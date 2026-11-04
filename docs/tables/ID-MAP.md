@@ -29,7 +29,7 @@
 | `CHK-A1`–`CHK-A7` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 7 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
 | `CHK-B1`–`CHK-B9` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 9 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
 | `CHK-C1`–`CHK-C7` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 7 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
-| 第 1–39 41–51 53–169 条 | 决议（定了就不重开，除非出现它写明的重开条件） | 167 | [DECISIONS.md](DECISIONS.md) |
+| 第 1–39 41–51 53–175 条 | 决议（定了就不重开，除非出现它写明的重开条件） | 173 | [DECISIONS.md](DECISIONS.md) |
 
 <!-- END generated -->
 

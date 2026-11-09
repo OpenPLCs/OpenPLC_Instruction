@@ -30,7 +30,7 @@ IDE 自带的 CLI 在 `$IDE/resources/app/lib/backend/resources/arduino-cli`（W
 | 菜单（FQBN 键） | 选项 | 用途 |
 |---|---|---|
 | Board part number（`pnum`） | `PLC_H743` | 唯一一项；变体头、flash 大小都挂在它下面 |
-| USB support（`usb`） | `CDCgen`（默认）：`Serial` 是 USB 口 1；`CDC`：`Serial` 落到 UART4 | `CDC` 只给 Renode 用（Renode 不模拟 USB） |
+| USB support（`usb`） | `CDCgen`（默认）：`Serial` 是 USB 口；`CDC`：`Serial` 落到 UART4 | `CDC` 只给 Renode 用（Renode 不模拟 USB） |
 | Upload method（`upload_method`） | `cdcMethod`（USB）、`ethMethod`（网口），都是 IAPTool | 只这两条过 bootloader 的签名和版本闸门（[M1](../modules/M1-firmware-upgrade.md)） |
 | Force flash（`forceflash`） | `no`（默认）、`yes` | 一次性允许烧低版本 |
 
@@ -78,4 +78,4 @@ IDE 自带的 CLI 在 `$IDE/resources/app/lib/backend/resources/arduino-cli`（W
 | 想看什么 | 真实位置 |
 |---|---|
 | network_discovery 的日志 | 系统临时目录下的 `network_discovery.log`（带 `[HH:MM:SS.mmm]` 时间戳）。Windows 是 `%TEMP%`，Linux 是 `$TMPDIR` 或 `/tmp`。**不是** `tools/discovery/bin/<平台>/err.log`（那是 IDE 抓的 stderr） |
-| bootloader / app 的日志 | USB 口 1（app 里就是 `Serial`），系统行带 `[sys]`；电脑打开口之前的在 SRAM4 开机缓存里，USB 不通时经网口读，都不通看 SWO（[HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)「测试从哪读板子的输出」）。⚠️ `R1-43` `R3-22` 落地前仍在 RS232 端子 C05/C06 |
+| bootloader / app 的日志 | USB 口（app 里就是 `Serial`），系统行带 `[sys]`；电脑打开口之前的在 SRAM4 开机缓存里，USB 不通时经网口读，都不通看 SWO（[HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)「测试从哪读板子的输出」）。IDE 的串口监视器要 `platform.txt` 写明 `pluggable_monitor.required.serial=builtin:serial-monitor`：平台自己声明了发现程序后，IDE 不再自动配串口监视器，打不开 COM 口（2026-11-09 实测） |

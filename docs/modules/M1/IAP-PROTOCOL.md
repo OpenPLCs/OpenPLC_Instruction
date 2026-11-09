@@ -17,12 +17,28 @@ app 在 core 的 [`udp_server.c`](../../../../OpenPLC_Arduino_PKG/libraries/Open
 | TCP | bootloader | `OPENPLC_SERVER_PORT`（56865），定义在 `$BOOT/Core/Inc/IAP_config.h`。同时只接一个连接，第二个直接拒绝（`IAPServer/tcp_server.c` `_accept()`） |
 | UDP | bootloader 和 app | 同一个端口。只收发现、（app 的）重启请求、读开机日志和只读查询 |
 | USB CDC | bootloader | 和 TCP 同一个命令解析器；不理 1200 波特率 |
-| USB CDC | app | 不收命令（只读查询等双 CDC 之后在 USB 口 2 上回，决策 148）。主机把波特率设成 1200（`MAGIC_CDC_RATE`）就写交接记录 `BOOT_REQ_CDC` 并复位进 bootloader，**无认证**（core `usbd_cdc_if.c` 的 `CDC_SET_LINE_CODING`） |
+| USB CDC | app | 平时是用户的 `Serial`，不收命令。主机把波特率设成 1200（`MAGIC_CDC_RATE`）就进 IAP 模式，见下面「USB 上的 IAP 模式」（决策 176） |
 
 **TCP 和 CDC 上一条命令以 `\n` 或 `\r` 结尾，按前缀匹配**（`process_command()` 用 `strncmp`）。没有结尾的残片 500 ms 后丢弃。
 一条命令可以跨多个 TCP 段 / USB 包到达。
 
 **UDP 一个数据报就是一条命令，不带换行，按整串精确匹配**（`strcmp`；`openplc_log` 例外，见下）。回答也不带换行。接收缓冲 bootloader 64 字节、app 512 字节，超出的截掉。
+
+## USB 上的 IAP 模式（app）
+
+[决策 176](../../tables/DECISIONS.md)：app 只有一个 USB 口，平时是用户的 `Serial`；主机把波特率设成 1200 时，这个口改由 IAP 服务接管。
+
+| 项 | 约定 |
+|---|---|
+| 进入 | 主机设 1200 波特（`CDC_SET_LINE_CODING`），板子不复位 |
+| 命令 | 一行一条，以 `\n` 或 `\r` 结尾，整行精确匹配；和 UDP 同一套：发现（回五段身份串）、四条只读查询、`openplc_server_reboot_challenge`、`openplc_server_reboot <cert> <sig>`。不认 `openplc_log`：日志退出模式后照常从这个口吐出。其他行不回，超过 511 字节的行丢弃 |
+| 回答 | 和 UDP 同一段文本，后面加 `\n` |
+| 限流 | 和网口共用同一份每秒预算 |
+| 重启 | 验签过了写交接记录 `BOOT_REQ_CDC` 再复位，bootloader 按 CDC 入口进上传模式（不起以太网，`R1-05`） |
+| 认出板子 | 每条命令都让 LED3 快闪，同网口单播（决策 161） |
+| 退出 | 主机换成别的波特率、DTR 掉线、10 s 没收到一条完整命令 |
+| 模式期间 | 用户 `Serial` 写的丢弃，读不到电脑发来的字节；系统日志不吐也不记成已吐，退出后补吐 |
+| 什么时候应答 | 和网口一样，在两次 `loop()` 之间和 `delay()` 里（`R3-07`）；sketch 一圈很久又不调 `delay()` 时应答跟着慢 |
 
 ## bootloader 的命令（TCP / CDC）
 
@@ -63,6 +79,13 @@ app 在 core 的 [`udp_server.c`](../../../../OpenPLC_Arduino_PKG/libraries/Open
 | `Flash Failed` | 镜像是好的，写 flash 失败，重传即可 |
 | `Failed` | 发送的字节超过暂存区 |
 
+**传到一半断开**：bootloader 丢掉收了一半的镜像，回到等命令，下一次上传不用复位。镜像只在 SDRAM 里，app 区没动过。
+
+| 通道 | 什么算断开 |
+|---|---|
+| TCP | 连接关闭，或空闲 60 s（`$BOOT` `IAPServer/tcp_server.c`） |
+| USB CDC | 主机关口（DTR 掉线），或重新枚举（拔插线）。只清 USB 这一路的会话，网口正在传的不受影响 |
+
 ## UDP
 
 | 发 | 谁回 | 回答 |
@@ -102,4 +125,4 @@ app 不认 TCP 上的任何命令；要烧写或改归属，先用上面这条�
 | 限流 | 整台设备每秒最多 20 个回答，超出的静默丢弃；和发现、`openplc_log` 各算各的 |
 | `getapprevoked` 在 app 里 | app 在跑就说明 bootloader 判过它有效，所以只看扇区 15 最新那条 metadata（app 自己按 bootloader 的扫法读，[SECTOR-15.md](SECTOR-15.md)「上电：扫一遍」） |
 | `info` | **只在 bootloader 的 TCP / CDC 上回**：版本串编在 bootloader 镜像里、没有固定地址，app 只知道自己编译时的板卡包版本，答不出板上装的是哪版 bootloader |
-| USB | app 的 USB 口现在不收命令；双 CDC 之后口 2 也回这四条 |
+| USB | app 在 IAP 模式里也回这四条（决策 176） |

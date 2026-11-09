@@ -2424,7 +2424,7 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 |---|---|
 | 范围 | 两边都在跑 IAP 服务的那部分（UDP / TCP / USB 上的命令）：同一条命令两边都认、回答格式一样；只有一边做得到的（如真正写 flash）各自说明 |
 | 第一处 | `openplc_log`（读开机日志缓存）bootloader 也认，格式成为跨仓镜像 |
-| 只读查询 | app 运行时也回 `getpubkey` `getowner` `getapprevoked` `getuid`，回答和 bootloader 一样（`info` 报的是 bootloader 自己的版本，app 无从得知，只有 bootloader 回）；网口走 UDP，双 CDC 之后也在 USB 口 2 上回 |
+| 只读查询 | app 运行时也回 `getpubkey` `getowner` `getapprevoked` `getuid`，回答和 bootloader 一样（`info` 报的是 bootloader 自己的版本，app 无从得知，只有 bootloader 回）；网口走 UDP，USB 在 IAP 模式里回（决策 176） |
 | 改状态的命令 | `flash` `flashboot` `takeown` `setowner` `setownerwipe` `revoke` `authchallenge` 仍只在 bootloader 里做，app 收到时由工具先重启进 bootloader（app 不能在运行时改写自己所在的 flash） |
 | 其余差异 | 逐条列在 [IAP-PROTOCOL.md](../modules/M1/IAP-PROTOCOL.md)，逐条定 |
 
@@ -2838,3 +2838,22 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 **理由**：用户 2026-11-04：「这个自动回环应答 还有用么？ 没用就删掉，这个位置放使用说明链接」「写一个上位机软件的使用说明，最好是有截图，并在截图上可视化的指导用户使用」。
 
 **什么情况下重开**：有第二个程序要和面板共用控制口、需要面板不回应答的时候。
+
+## 176 · USB 只留一个口，1200 波特是进 IAP 模式的开关
+
+2026-11-09 定。
+
+| 事 | 定案 |
+|---|---|
+| 口数 | app 和 bootloader 都只出一个 USB CDC 口，不做双 CDC |
+| 1200 波特 | app 收到后不复位，进 IAP 模式：这个口改由 IAP 服务接管，命令和回答同网口 UDP，重启同样要挑战 + 签名。bootloader 不改 |
+| 退出 | 主机换成别的波特率、DTR 掉线、10 s 没有命令 |
+| 模式期间 | 用户 `Serial` 写的丢弃、读不到；系统日志压住，退出后补吐 |
+| 新 IAPTool 遇旧板卡包 | 设 1200 后口消失 ⇒ 认定是旧程序，按老流程上传，那次不比版本 |
+| 放弃的能力 | 程序死循环时经 USB 救不回，要按住 BOOT0 |
+
+格式见 [IAP-PROTOCOL.md](../modules/M1/IAP-PROTOCOL.md)「USB 上的 IAP 模式」。
+
+**理由**：USB 只在调试时插，人就在跟前（用户 2026-11-06）；一个口用户不会选错，USB 和网口走同一套 IAP 逻辑（决策 132），不经认证不能让运行中的 PLC 停下。
+
+**什么情况下重开**：需要不到现场就经 USB 救回死机程序时。

@@ -38,7 +38,7 @@
 python tools/init_machine.py      # 一次性：探测本机路径，生成 config/machine.py（Linux 上是 python3）
 python tools/selfcheck.py         # 不需要板子的检查；--list 先看它跑哪几步
 python tools/flash_bootloader.py  # 命令行编 bootloader、ST-Link 烧写、复位一次备份域（决策 157，RTC 和备份寄存器清零）、抓启动日志（CubeIDE 必须关闭）
-python tools/serial_watch.py      # 只看板子 USB 口 1（系统日志和 Serial），不碰板子；--ports 改看 RS232
+python tools/serial_watch.py      # 只看板子 USB 口（系统日志和 Serial），不碰板子；--ports 改看 RS232
 ```
 
 ⚠️ **测试脚本一律用 Python**（2026-09-01 定）。缺什么会报 `SKIP` 并说清缺什么，**不会静默跳过**。
@@ -59,7 +59,7 @@ TestCase <case-id|all> --ip=<addr> [--port=56865] [--bin=<file.bin>] [--iaptool=
          [--key=<owner.pem>]
 ```
 
-- `--ip` 必填。设备 IP 从 USB 口 1 的 `[sys][NET]` 行读（见下面「测试从哪读板子的输出」），或用 `IAPTool ether` 的广播发现看。
+- `--ip` 必填。设备 IP 从 USB 口的 `[sys][NET]` 行读（见下面「测试从哪读板子的输出」），或用 `IAPTool ether` 的广播发现看。
 - `--bin` T1-09 / T1-11 / T1-12 需要；`--key` T1-11 / T1-12 需要，是板子当前信任的那把私钥。
 - `--iaptool` 默认找 `Output/windows/IAPTool.exe`。
 - 退出码：全过 0，有失败 1，参数错 2。
@@ -319,11 +319,11 @@ RS232 不再有系统日志以后：
 
 | 谁 | 读哪 | 要点 |
 |---|---|---|
-| 上板脚本 | USB 口 1，只认 `[sys]` 开头的行 | 交权时口会断开重连，脚本按 VID / PID + 板子 UID 重新找口、重开；开机最早那段靠缓存在口打开时吐出。公共函数是 `$TEST/tools/common.py` 的 `open_board_log()` |
-| 板子停在 bootloader 的上板脚本 | 经 ST-Link 读 SRAM4 缓存（`read_boot_log_swd()`），只看操作之后新写的记录 | bootloader 没有口 1；已经用 ST-Link 复位、烧写的脚本也一律这么读。过渡做法（2026-10-17 定），bootloader 有了口 1（双 CDC）后改读口 1 |
+| 上板脚本 | USB 口，只认 `[sys]` 开头的行 | 交权时口会断开重连，脚本按 VID / PID + 板子 UID 重新找口、重开；开机最早那段靠缓存在口打开时吐出。公共函数是 `$TEST/tools/common.py` 的 `open_board_log()` |
+| 板子停在 bootloader 的上板脚本 | 经 ST-Link 读 SRAM4 缓存（`read_boot_log_swd()`），只看操作之后新写的记录 | bootloader 的 USB 口只跑 IAP 命令、不吐日志（决策 176）；已经用 ST-Link 复位、烧写的脚本也一律这么读 |
 | Renode | 例程用「CDC (no generic 'Serial')」编，`Serial` 落 UART4（`Serial4`）；bootloader 的行和 core 的系统日志在跑完后用 `sysbus` 从 SRAM4 读出 | Renode 不模拟 USB |
 | bootloader 替身 | 照旧读 PC 程序的标准输出 | 不受影响 |
-| 判据 | 行的内容不变，只换通道：「RS232 上出现 X」改成「口 1 上出现 `[sys]…X`」 | 各用例表统一改一次 |
+| 判据 | 行的内容不变，只换通道：「RS232 上出现 X」改成「USB 口上出现 `[sys]…X`」 | 各用例表统一改一次 |
 | RS232 端子 | 只有测 RS232 本身的用例（T3-03、`RS232_Echo` 的回显）和用 `RS232` 打印的板上 sketch 读，口配在 `RS232_PORT` | |
 
 USB 坏了时人工改从网口读缓存（IAPTool 命令）；网口也不通时插 ST-Link 看 SWO。SWO 不进自动测试。

@@ -103,7 +103,7 @@ CHK-A4 的上限是整个扇区 0，因为根区 2026-09-30 起在扇区 15（�
 |---|---|---|
 | `SDRAM staging buffer OK (2 MiB at C0000000)` | ✅ 暂存区可用 | 继续 |
 | `** SDRAM SELF-TEST FAILED at offset ... **` | ❌ FMC 或上电时序坏了 | **停**。先修 FMC，上传测试全部无意义 |
-| USB 口 1 一个字节都没有 | 口被别的程序占着，或 USB 没枚举 | 看脚本提示的占用进程；或经网口读开机缓存，再不行看 SWO（[HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)「测试从哪读板子的输出」） |
+| USB 口一个字节都没有 | 口被别的程序占着，或 USB 没枚举 | 看脚本提示的占用进程；或经网口读开机缓存，再不行看 SWO（[HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)「测试从哪读板子的输出」） |
 
 **当前状态：✅ 通过。**
 

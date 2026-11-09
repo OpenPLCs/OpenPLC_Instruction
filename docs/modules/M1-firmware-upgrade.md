@@ -62,7 +62,7 @@ sequenceDiagram
 | **怎么比** | 逐段数值比较，三段各 0–255。**严格小于才算更旧**，相等放行（重烧同一版是日常操作） |
 | **拿不到版本怎么办** | `CUSAPP` 才比；`BOOTLD` / `BOOTLD-INVALID` **放行**（没有「当前版本」可言）；**发现超时则拒绝** —— 未知不等于没有 |
 | **怎么强制** | IDE 菜单 `低版本强制烧录`（默认「否」）⇒ IAPTool 收到 `--force`。**一次性**：标记只在烧成功后写，再烧一次会被拒，把菜单拨回「否」即重置 |
-| **挡不住哪条路** | ⚠️ **只有 ETH Transfer 挡得住**。**CDC Transfer 挡不住，是缺陷、要改（决策 132）** —— app 在跑时 `cdcIdentify` 拿不到任何应答（sketch 占着 CDC 数据管道），等它进了 bootloader，第 5 段已经是 `-`，**CDC 路径上不存在能读到已装版本的时刻**。**SWD / Serial 直连**同样挡不住，唯一手段 RDP Level 2 不可逆且会废掉 BOOT0 恢复出厂和 ST-Link 救砖 ⇒ 不做，留给客户 |
+| **挡不住哪条路** | ETH Transfer 和 CDC Transfer 都在请重启之前比（CDC 在 IAP 模式里，决策 132、176；CDC 这支 2026-11-09 上板过）；新 IAPTool 遇到 1200 就重启的旧板卡包时退回老流程，那次不比。**SWD / Serial 直连**同样挡不住，唯一手段 RDP Level 2 不可逆且会废掉 BOOT0 恢复出厂和 ST-Link 救砖 ⇒ 不做，留给客户 |
 
 ⚠️ **sketch 不声明版本号就编译不过** —— core 只声明 `extern const char openplc_app_version[]` 不定义，
 `prebuild.sh` 先粗查给出可读报错，链接器兜底。**这会让所有现存 sketch 在换上新板卡包后第一次编译失败**，是故意的。
@@ -73,11 +73,14 @@ sequenceDiagram
 
 | | |
 |---|---|
+| **两条路是一份流程** | 认出板子 → 比版本 → 认证重启 → 按 UID 找回 → 认领 → 核对密钥 → 发块 → 判结论，USB 和网口走同一段代码（`$TOOL` `upload.go` 的 `runUpload`），只有收发各一份（决策 132） |
+| **每块的 `OK`** | 回答以 `OK` 开头才算，后面粘着的文字留给判结论；别的回答当场报错。两条路同一判法：每块等 5 s，`flash` 命令等 10 s |
 | **结论从哪来** | 最后一块之后板子的回答，USB 和网口一样：拒收文本 ⇒ 报 `the board refused the image: <文本>`、退出码 1；确认接受才退出码 0 |
 | **`flash` 命令被拒**（如证书的叶已撤销） | 板子在传数据之前就回 `ERR`：报 `the board refused the flash command: <回答>`、退出码 1。2026-10-14 真板上 USB 这一支曾静默退出 0，已修 |
-| **网口怎么确认接受** | 板子复位后重新答话（`$TOOL` `IAP_Ether.go` 的 `readFinalVerdict`），怎么找见下一行 |
-| **等板子回来**（请 app 进 bootloader 后、镜像写完后） | 每秒单播问一次原 IP，目标 UID 答了就停，另一块板答了就报换了板子；原 IP 连续 30 s 不答才加发广播，找被 DHCP 换了地址的板子。正常上传不发广播（决策 124） |
-| **USB 怎么确认接受** | COM 口随复位消失：读口报错，或系统串口列表里没了这个口（`$TOOL` `common.go` 的 `readCDCVerdict`）。bootloader 只在接受时复位，所以口消失就是接受 |
+| **网口怎么确认接受** | 板子复位后重新答话，怎么找见下一行。判读在 `$TOOL` `upload.go` 的 `readVerdict`，两条路共用 |
+| **等板子回来**（请 app 进 bootloader 后、镜像写完后） | 每秒问一次：网口单播问原 IP，USB 以 1200 波特开一次同一个口问；目标 UID 答了就停，另一块板答了就报换了板子。网口原 IP 连续 30 s 不答才加发广播，找被 DHCP 换了地址的板子，正常上传不发广播（决策 124） |
+| **请重启没成** | 两条路都最多请 3 次；板子一直以 app 应答时，报「板子不接受这次重启：密钥不被信任，或请求丢了」 |
+| **USB 怎么确认接受** | COM 口随复位消失：读口报错，或系统串口列表里没了这个口。bootloader 只在接受时复位，所以口消失就是接受 |
 | **等多久** | 两条通道都 90 秒：`Flash Failed` 要等擦写完才来。到时既没回答也没复位 ⇒ 报「未确认」、退出码 1 |
 | **默认打什么** | 目标、目标 UID、请 app 进 bootloader、一行进度条、结论或错误；第一次认领另有认领那几行 |
 | **`-v`** | 全部过程日志：每一块、每条命令（含签名 hex）、等待期每次问询。IDE 勾「上传时显示详细输出」时由板卡包 `platform.txt` 的 `{upload.verbose}` 传入 |
@@ -167,13 +170,11 @@ flowchart TD
 | 路 | 怎么触发 | 门槛 | 结果 |
 |---|---|---|---|
 | ① **BOOT0 按住** | 复位后按住 PG9 穿过开机窗口（系统指示灯快闪那 2 秒） | ✋ 物理 | `IAP_ALL`（不知道操作者会用哪条通道，全开） |
-| ② **USB CDC 1200 bps** | 打开串口设 1200 波特再关掉 | ⚠️ **无认证可能** | `IAP_CDC` |
+| ② **USB CDC 1200 bps** | 把串口设成 1200 波特，app 进 IAP 模式，再发 `openplc_server_reboot_challenge` → `openplc_server_reboot`（[决策 176](../tables/DECISIONS.md)） | 要签名，同 ③ | `IAP_CDC` |
 | ③ **网络请求重启** | `openplc_server_reboot_challenge` → `openplc_server_reboot` | 要签名 | 回答这条的是**正在跑的 app**，不是 bootloader |
 | ④ **没有可跑的 app** | 第 1 步验签没过，或压根没有 metadata | 派生结果 | `IAP_ALL`，停在 bootloader 等人来重传 |
 
-⚠️ **② 为什么不能加认证**：1200 bps 的 magic touch 是**单向的波特率信号，没有回程通道**，做不了挑战应答。接受它是因为摸到这条路已经需要**物理 USB 访问**，比把一个 UDP 包路由到某个 IP 高一个信任层级 —— 而且它只武装「等上传」状态，**真正的授权仍在第 4 步**。
-
-⚠️ **这条不对称是刻意接受的，不是缺口** —— 写出来就是为了**不被后来的人当成 bug 去「修」**。
+**② 的 IAP 模式**（决策 176）：1200 bps 不再直接复位，只是让 app 把这个 USB 口交给 IAP 服务，命令和回答同网口 UDP（[IAP-PROTOCOL.md](M1/IAP-PROTOCOL.md)「USB 上的 IAP 模式」）。程序死循环时这条路不通，要按住 BOOT0（①）：USB 只在调试时插，人就在跟前。
 
 ### 交接记录为什么住在 SRAM4 而不是 RTC 备份寄存器
 
@@ -286,14 +287,15 @@ flowchart TD
 | **R1-40** | 入口通道 | 烧录前比版本：要烧的 sketch 比板上正在跑的旧就拒绝；`--force` 只放行一次，烧成功后再用被拒（见「版本闸门」） | `T1-38` | ✅ |
 | **R1-41** | 传输与校验 | IAPTool 经 USB 和网口上传都读板子的最终结论：被拒报错、退出码非 0（决策 124，见「IAPTool 怎么判上传结论」） | `T1-35` | ✅ 2026-10-14 真板：已撤销的叶经 USB 上传报错、退出码 1，板上原 app 不动；最后一块之后的拒收只有 `T1-35` 单元测试 |
 | **R1-42** | 入口通道 | IDE 不勾「上传时显示详细输出」时 IAPTool 只打关键行和进度条（十行以内），勾了打全（决策 124） | `T1-34` `T1-35` | ✅ |
-| **R1-43** | 日志与诊断 | bootloader 不往 RS232 端子写任何东西（死机时也不写）；日志走 USB 口 1（口 2 跑 IAP 协议），电脑打开口 1 之前的输出存在 SRAM4 的开机缓存里；故障信息存进复位后不丢的内存（格式见 [BOOT-LOG.md](M1/BOOT-LOG.md)），SWO 保留给开发；**USB 初始化失败、不枚举或没人读时，开机、跳进 app、经网口上传都不受影响**（用户 2026-10-17）（决策 147） | 待定 | ⬜ |
-| **R1-44** | 入口通道 | 板子停在 bootloader 里时，电脑经 USB 打开板子的串口或经网口单独给板子发请求，LED3（PE2）快闪约 2 s；广播发现不闪（[决策 161](../tables/DECISIONS.md)） | 手工：两块板都停在 bootloader，经 USB 和网口各找一次，看哪块闪 | 🟡 已实现，编译通过，未上板 |
+| **R1-43** | 日志与诊断 | bootloader 不往 RS232 端子写任何东西（死机时也不写）；日志走 USB 口（同一个口设成 1200 波特时进 IAP 模式，决策 176），电脑打开 USB 口之前的输出存在 SRAM4 的开机缓存里；故障信息存进复位后不丢的内存（格式见 [BOOT-LOG.md](M1/BOOT-LOG.md)），SWO 保留给开发；**USB 初始化失败、不枚举或没人读时，开机、跳进 app、经网口上传都不受影响**（用户 2026-10-17）（决策 147） | 待定 | 🟡 2026-11-09 真板：复位后 12 s 内 RS232 端子 0 字节；不插 USB 开机、经网口上传成功；死机记录复位后从 USB 口吐出 |
+| **R1-44** | 入口通道 | 板子停在 bootloader 里时，电脑经 USB 打开板子的串口或经网口单独给板子发请求，LED3（PE2）快闪约 2 s；广播发现不闪（[决策 161](../tables/DECISIONS.md)） | 手工：两块板都停在 bootloader，经 USB 和网口各找一次，看哪块闪 | 🟡 2026-11-09 单板实测：USB 开口、网口单独问都快闪，广播不闪；两块板同时接着没测 |
+| **R1-45** | 会话 | USB 上传到一半主机关口或拔线，bootloader 丢掉这次会话；不复位就能再传（TCP 断开早就这样，R1-16） | `T1-39`（拔线）；杀掉 IAPTool 那条手工：经 USB 上传到一半杀掉，不复位直接再传一次 | ✅ 2026-11-09 真板：传了 3 块后杀掉，紧接着再传，认出板子并传成；传了 3 块时拔线、插回后不复位再传也成 |
 
-**共 44 条。其中 34 条有测试用例直接测它，10 条没有。**
+**共 45 条。其中 35 条有测试用例直接测它，10 条没有。**
 
 | 「谁证明」是什么 | 条数 | 哪些 |
 |---|---|---|
-| 有 `T1-xx` 用例直接测 | **34** | `R1-01`–`R1-05` `R1-08`–`R1-12` `R1-15`–`R1-29` `R1-34`–`R1-42`（`R1-40` 在 bootloader 替身上跑；`R1-38` 的 IDE 上传在替身上跑，真板子未认领那一次还没上板验，见 ¹⁰） |
+| 有 `T1-xx` 用例直接测 | **35** | `R1-01`–`R1-05` `R1-08`–`R1-12` `R1-15`–`R1-29` `R1-34`–`R1-42` `R1-45`（`R1-40` 在 bootloader 替身上跑；`R1-38` 的 IDE 上传在替身上跑，真板子未认领那一次还没上板验，见 ¹⁰） |
 | 纯手工 | **4** | `R1-13` `R1-30` `R1-31` `R1-44` |
 | 只有静态检查 P2 | **1** | `R1-06` |
 | 静态检查 P2 + 两块板实测 | **1** | `R1-14` |
@@ -364,12 +366,13 @@ M1 的上板用例和契约用例在 `$TEST` 跑；部件测试的命令前写�
 | `T1-32` | `R1-37` | 没有根的板子拒绝 `flashboot` | 恢复出厂后发 `flashboot` → `Refused`，扇区 0 不变，板子照旧启动原 bootloader | `python tools/run_flashboot.py --bin <boot.bin> --key <owner.pem> --unclaimed`（先恢复出厂）| 真板子；替身（`python host/fakeboard/run_protocol.py --only T1-32`，裸命令，IAPTool 发命令前就会拦）证明无根板对 `flashboot` 回 `Refused`；认领后真写扇区 0 仍要真板子 | ✅ 2026-10-08 上板 ¹¹ |
 | `T1-33` | `R1-36` | **压缩留对了东西**：只留当前生效那条和还生效的作废 | 喂一块故意乱掉的根区（合法首条 + 一条坏格式 + 一条签名换主 + 一条**无签名**的高 generation），跑**真实**的 `owner_slot_build_carry()`：留下的只有签名换主那条（**签名被剥掉**），**无签名那条没有被压缩扶正**；点名当任根的 `'R'`（R4 忽略的那种）被丢掉，另两条保留。**再把结果写进擦过的区重扫一遍**，根、generation、作废名单全部不变 ⁸ | `$BOOT/tests`：`ctest --preset local -R T1-33` | 主机侧（要 gcc/clang） | ✅ |
 | `T1-34` | `R1-38` `R1-42` | IDE 那条上传命令在 bootloader 替身上走通：板子在跑 app，未认领 / 已认领 / 密钥不对各一次 | `arduino-cli upload -l network -p <本机网卡 IP> --discovery-timeout 10s`（`upload_method=ethMethod`）上传编好的 `OpenPLC_Ports/DO_Outputs`：①未认领（出厂板，在 bootloader 里）、用户目录里没有密钥 → 在用户目录生成密钥并认领，退出码 0，输出有 `Claimed.`（决策 72）；②已认领、owner 密钥放在用户目录 → 退出码 0，IAPTool 打的行（`[INFO]` 加进度条）不超过 10 行（决策 124）；③用户目录里是另一把密钥 → 替身里 app 一侧拒绝重启请求，退出码非 0，输出有 `did not accept the reboot request`。①②还要**替身那边验过整个镜像**（`Checksum and signature OK`），且收完镜像后真的复位、回到 app ¹⁰ | `python host/fakeboard/run_ide_upload.py` | bootloader 替身（本机），**手工跑，不进 selfcheck** ¹⁰ | ✅ |
-| `T1-35` | `R1-38` `R1-41` `R1-42` | IAPTool 自己的主机侧单元测试：密钥查找顺序、串口层、协议常量与绑物理网卡拨号、USB 上传结论判读、`-v` 开关 | 全部 `go test` 通过；密钥按「`--key` → `local_config.json` → 用户配置目录 → exe 旁边」的顺序找到；USB 结论判读对假串口：拒收文本（含和最后一块的 `OK` 粘在一起）报错，读口报错或口从列表消失算接受，既无回答又没复位算未确认 | `$TOOL`：`go test . ./internal/... ./iapproto/... ./netiface/...` | 主机侧，进 selfcheck | ✅ |
+| `T1-35` | `R1-38` `R1-41` `R1-42` | IAPTool 自己的主机侧单元测试：密钥查找顺序、串口层、协议常量与绑物理网卡拨号、USB 上传结论判读、`-v` 开关 | 全部 `go test` 通过；密钥按「`--key` → `local_config.json` → 用户配置目录 → exe 旁边」的顺序找到；结论判读（两条路共用）对假串口：拒收文本（含和最后一块的 `OK` 粘在一起）报错，读口报错或口从列表消失算接受，既无回答又没复位算未确认；每块的 `OK` 以 `OK` 开头才算 | `$TOOL`：`go test . ./internal/... ./iapproto/... ./netiface/...` | 主机侧，进 selfcheck | ✅ |
 | `T1-36` | `R1-39` | 开机输出置 0 | `safe_outputs_init()` 之后 11 个脚（DO1–DO8、PA4、PA5、PB14）都是推挽输出、电平为低，同端口其他脚不变，对应 GPIO 时钟已开 | `$BOOT/tests`：`ctest --preset local -R T1-36` | 主机侧（假 GPIO 寄存器），测不到真引脚电平和时序 | ✅ |
 | `T1-37` | `R1-39` | 开机输出置 0，经真 bootloader 跳进 app 之后仍是 0；BOR 检查 | 当前 `$BOOT` 工作区编出的 bootloader + 不碰这些脚的 `SystemLED`：`HAL_Init()` 入口（`safe_outputs_init()` 刚做完）、`server_jump_to_app()` 入口、app 的 `Reset_Handler` 入口（`HAL_DeInit()` 后又置了一次）、`setup()` 入口、app 跑满 20 s 时各读一次 GPIO，11 个脚（DO1–DO8、PA4、PA5、PB14）都是推挽输出、`ODR` 为 0。BOR：选项字节 `BOR_LEV` 为 0 时串口有那行警告，用选项字节编程序列改成 3 后没有 ¹² | `python host/renode/boot_outputs.py` | Renode，进 selfcheck（`--quick` 跳过） | ✅ |
-| `T1-38` | `R1-40` | 烧录前比版本 | 板上 app 报 `9.9.9` 时传 `1.0.0`：IAPTool 拒绝，板子一个字节没收；加 `--force` 放行并烧成；紧接着再 `--force` 被拒（`force flash has already been used once`） | `python host/fakeboard/run_lifecycle.py --only T1-38` | 替身（真 bootloader 代码 + 真 IAPTool，经网口）；CDC 那支本来挡不住（见「版本闸门」），IDE 菜单那条走真板子 | ✅ |
+| `T1-38` | `R1-40` | 烧录前比版本 | 板上 app 报 `9.9.9` 时传 `1.0.0`：IAPTool 拒绝，板子一个字节没收；加 `--force` 放行并烧成；紧接着再 `--force` 被拒（`force flash has already been used once`） | `python host/fakeboard/run_lifecycle.py --only T1-38` | 替身（真 bootloader 代码 + 真 IAPTool，经网口）；CDC 那支只在真板子上验过（2026-11-09，旧版被拒），IDE 菜单那条走真板子 | ✅ |
+| `T1-39` | `R1-45` | USB 上传到一半拔线，插回后不复位再传 | 经 USB 传 1 MB 的 `onboard/usb_unplug/BigImage`，传完 3 块时挂起 IAPTool、语音提示人拔线；口消失后放 IAPTool 退出、提示插回；插回后板子仍报 `BOOTLD`，不复位经 USB 再传成功 | `python tools/run_usb_unplug_reupload.py` | 真板子，要人拔插（语音提示）；测不到断电、只断数据线不断电源的情况 | ✅ 2026-11-09 板子 UID …0029 |
 
-**共 44 条**（`T1-18a`–`T1-18g` 是一族七种情况，原先压成一个 `T1-18`；`T1-18c` 2026-10-03 作废）。
+**共 45 条**（`T1-18a`–`T1-18g` 是一族七种情况，原先压成一个 `T1-18`；`T1-18c` 2026-10-03 作废）。
 
 ¹¹ **`T1-32` 按决策 72 后的判据（没有根一律拒绝，`$BOOT/IAPServer/IAP_server.c:465-468`）2026-10-08 在真板子上通过**；2026-09-22 那次测的是之前「按住 BOOT0 放行」的行为，不算数。
 

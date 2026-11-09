@@ -59,7 +59,7 @@ MAX3221 的 ±5.5V 线电平由**电荷泵**用几只外部电容产生。PB10 �
 
 | 谁 | 外设 | 引脚 | 出口 |
 |---|---|---|---|
-| `printf` / stdout、`core_debug` | 不走 UART | — | 系统日志：SRAM4 开机缓存 + USB 口 1（就是 `Serial`），`R3-22`；代码在 `$CORE_REPO/cores/arduino/Print.cpp` 的 `_write` |
+| `printf` / stdout、`core_debug` | 不走 UART | — | 系统日志：SRAM4 开机缓存 + USB 口（就是 `Serial`），`R3-22`；代码在 `$CORE_REPO/cores/arduino/Print.cpp` 的 `_write` |
 | `RS232` | **USART3** AF7 | PC10 / PC11 | RS232 端子 C05 / C06，只归 sketch |
 | `Serial1`（`PIN_SERIAL_TX` / `PIN_SERIAL_RX`） | **UART4** AF8 | PH13 / PH14 | JunctionLink 扩展口 J4-11 / J4-12 |
 

@@ -478,7 +478,7 @@ stateDiagram-v2
 
 第 6 步板子上跑的不是工装固件，是板卡包例程 `FixtureDemo`（`$CORE_REPO/libraries/OpenPLC_Ports/examples/FixtureDemo/`）。它只用板卡包 API，所以测到的是用户 app 走的路径（[决策 93](../../tables/DECISIONS.md)）。协议在它里面另有一份实现，是一条跨仓镜像（[ARCHITECTURE.md](../../repo/ARCHITECTURE.md)「跨仓镜像的代码」第 15 条），由 `T4-05` 对两边各跑一遍同一份测试兜住。
 
-控制口仍是 RS232 端子 C05 / C06、115200 8N1：demo 走 `RS232`（USART3），工装固件走 UART4，两者在同一对引脚上（[HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)「app 侧三条通道各走哪个外设」）。core 的系统日志不在这条线上，走 USB 口 1（`R3-22`）；demo 用 `OPENPLC_SYSTEM_LOG(OFF)` 把它关掉，口 1 只做 USB 测试，日志仍记在 SRAM4，用 `IAPTool log <ip>` 读（用户 2026-10-20）。
+控制口仍是 RS232 端子 C05 / C06、115200 8N1：demo 走 `RS232`（USART3），工装固件走 UART4，两者在同一对引脚上（[HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)「app 侧三条通道各走哪个外设」）。core 的系统日志不在这条线上，走 USB 口（`R3-22`）；demo 用 `OPENPLC_SYSTEM_LOG(OFF)` 把它关掉，USB 口只做 USB 测试，日志仍记在 SRAM4，用 `IAPTool log <ip>` 读（用户 2026-10-20）。
 
 **怎么认出 demo**：`pt.caps` 表头和 `pt.id` 多一个 `demo=<例程版本>`，工装固件没有这个键。`porttool=` 是 demo 照着讲的协议版本，`T4-05` 要求它等于工装固件的 `PORTTOOL_VERSION`。
 

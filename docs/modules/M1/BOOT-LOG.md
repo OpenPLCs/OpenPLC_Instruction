@@ -1,8 +1,8 @@
 # 开机日志缓存（SRAM4）
 
-用户 2026-10-17 定（口 1 每次打开只吐没吐过的、一行最多 200 字节，都按这份）。要求见 [M1](../M1-firmware-upgrade.md) `R1-43`、[M3](../M3-app-runtime.md) `R3-22` `R3-23`。放 SRAM4 是为了存住电脑来不及打开口 1 的那段开机输出；链接脚本挖出这 4 KB，app 就不会把它当普通内存用掉。
+用户 2026-10-17 定（USB 口每次打开只吐没吐过的、一行最多 200 字节，都按这份）。要求见 [M1](../M1-firmware-upgrade.md) `R1-43`、[M3](../M3-app-runtime.md) `R3-22` `R3-23`。放 SRAM4 是为了存住电脑来不及打开 USB 口的那段开机输出；链接脚本挖出这 4 KB，app 就不会把它当普通内存用掉。
 
-bootloader 和 app 往同一块缓存里写系统日志；电脑打开 USB 口 1 时 app 把还没吐过的吐出去，IAPTool 随时能读全部。复位后保留，断电清空。
+bootloader 和 app 往同一块缓存里写系统日志；电脑打开 USB 口时 app 把还没吐过的吐出去，IAPTool 随时能读全部。复位后保留，断电清空。
 
 ## 位置
 
@@ -12,6 +12,7 @@ bootloader 和 app 往同一块缓存里写系统日志；电脑打开 USB 口 1
 | 大小 | 4096 字节：32 字节头 + 4064 字节记录区 |
 | 链接脚本 | 三份（bootloader 两份、板卡包一份）的 `RAM_D3` 改成 `ORIGIN = 0x38001020, LENGTH = 64K - 32 - 4096`，链接器放不进来 |
 | 缓存一致性 | app 开着 D-cache 时，每写完一条就按地址清 cache 行（同交接记录的做法），否则软复位后内容丢在 cache 里 |
+| ECC 暂存 | SRAM4 按 32 位字算 ECC，不满一个字的写入先暂存在控制器里，复位时丢掉（AN5342），记录末尾那半个字就会丢、整份被判损坏。所以每次写完都往头部 +28 的保留字补写一个字节，把暂存推进 SRAM（2026-11-09 真板实测） |
 
 ## 头（32 字节，一条 cache 行）
 
@@ -23,9 +24,9 @@ bootloader 和 app 往同一块缓存里写系统日志；电脑打开 USB 口 1
 | +8 | `head` u32 | 下一条写在记录区的哪个偏移 |
 | +12 | `tail` u32 | 最旧一条在哪个偏移 |
 | +16 | `seq` u32 | 下一条的序号 |
-| +20 | `sent` u32 | 已经吐到口 1 的最后序号 + 1 |
+| +20 | `sent` u32 | 已经吐到 USB 口的最后序号 + 1 |
 | +24 | `check` u32 | `~(magic ^ version ^ size ^ head ^ tail ^ seq ^ sent)` |
-| +28 | 保留 | 0 |
+| +28 | 保留 | 0；每次写完往这里补写一个字节，见上「ECC 暂存」，读的时候不看 |
 
 ## 记录
 
@@ -78,9 +79,9 @@ bootloader 和 app 开机各查一次：头的 `magic` / `check` 对、从 `tail
 
 | 谁 | 读什么 |
 |---|---|
-| app，口 1 的 DTR 置位时 | 序号 ≥ `sent` 的各条依次吐出，再把 `sent` 推到最新；口开着时新写的一条同时直接发出 |
-| `IAPTool log <ip>`（bootloader 和 app 都回，经网口 UDP `openplc_log`，见 [IAP-PROTOCOL.md](IAP-PROTOCOL.md)「`openplc_log`」） | 从 `tail` 到 `head` 全部，不动 `sent`。经 USB 口 2 读等双 CDC |
-| `OPENPLC_SYSTEM_LOG(OFF);` 的 sketch | 照写缓存，不往口 1 吐 |
+| app，USB 口的 DTR 置位 200 ms 后 | 序号 ≥ `sent` 的各条依次吐出，再把 `sent` 推到最新；口开着时新写的一条同时直接发出。等 200 ms 是因为有的主机（如 pyserial）开口时先拉 DTR 再清接收缓冲，立刻吐的会被清掉却已标成吐过（2026-11-09 真板实测） |
+| `IAPTool log <ip>`（bootloader 和 app 都回，经网口 UDP `openplc_log`，见 [IAP-PROTOCOL.md](IAP-PROTOCOL.md)「`openplc_log`」） | 从 `tail` 到 `head` 全部，不动 `sent`。USB 上没有这条命令：日志本来就从 USB 口吐（决策 176） |
+| `OPENPLC_SYSTEM_LOG(OFF);` 的 sketch | 照写缓存，不往 USB 口吐 |
 
 ## 镜像
 

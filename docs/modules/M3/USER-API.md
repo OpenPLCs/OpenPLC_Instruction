@@ -4,7 +4,7 @@
 
 | 端口 | 用户用什么 | 引脚常量 | 落地 |
 |---|---|---|---|
-| USB 口 1 | `Serial`（即 `SerialUSB`）：用户的打印，系统日志的 `[sys]` 行也在这（`R3-22` `R3-23`，[M3](../M3-app-runtime.md)） | — | 待改（`R3-22` `R3-23`） |
+| USB 口 | `Serial`（即 `SerialUSB`）：用户的打印，系统日志的 `[sys]` 行也在这（`R3-22` `R3-23`，[M3](../M3-app-runtime.md)）。主机设 1200 波特时这个口进 IAP 模式，那段时间 `Serial` 写的丢弃、读不到（[决策 176](../../tables/DECISIONS.md)） | — | 待改（`R3-22` `R3-23`） |
 | RS232（C05 / C06） | `RS232`：`HardwareSerial`，USART3，只给用户程序接设备；`RS232.begin()` 才打开收发器，core 不往它写（`R3-23`） | `RS232_TX` `RS232_RX` `RS232_EN` | ✅ 2026-10-14 上板 `RS232_Echo` 过；收发器改由 `begin()` 打开待改（`R3-23`） |
 | RS485（端子见 [HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)） | `RS485`：core 定义的对象，USART2；`write()` 时自己拉高 `RS485_DIR`、发完（等到 TC）再拉低，用户不碰方向脚 | `RS485_TX` `RS485_RX` `RS485_DIR` | ✅ 2026-10-14 上板 `RS485_Echo` 过 |
 | 以太网 | `Net`：`linkUp()` `hasIP()` `localIP()`（`IPAddress`，没拿到地址时 0.0.0.0）`macAddress(mac)`；core 开机就起网络（IAP 要用），没有 `begin()`。`openplc_net_*` `openplc_udp_server_*` 的声明在 core 内部头文件 `stm32/openplc_net.h`，两个 `*_Autostart.h` 只留给依赖扫描、不再声明函数 | — | 2026-10-14 改完，模拟过（Renode `T3-11` `Ethernet_IP`），2026-10-15 上板过（`T3-06`） |
@@ -12,7 +12,7 @@
 | CAN、SDRAM、KNX | `CAN` `SDRAM` `KNX`，已是对象 + `begin()` | `CAN_TX` `CAN_RX`（只有 `CAN` 内部用） | CAN 引脚 2026-10-14 改完，模拟过（Renode `T3-11` `CAN_Counter`），2026-10-15 上板过（`T3-06`） |
 | AI / AO、复位原因、VREF、YMODEM | `openplcXxx()` 函数，无状态；复位原因只留 `openplcResetCause()` 一个入口。`openplc_calib.h` 的 snake_case 是跨仓镜像，不动 | — | 2026-10-14 改完，待验证 |
 
-**关掉系统日志**：sketch 里写一行 `OPENPLC_SYSTEM_LOG(OFF);`（同 `OPENPLC_APP_VERSION` 的写法，`ON` 是默认），系统日志照样进开机缓存、`IAPTool log <ip>` 照样读得到，只是不往 USB 口 1 吐（`R3-23`）。
+**关掉系统日志**：sketch 里写一行 `OPENPLC_SYSTEM_LOG(OFF);`（同 `OPENPLC_APP_VERSION` 的写法，`ON` 是默认），系统日志照样进开机缓存、`IAPTool log <ip>` 照样读得到，只是不往 USB 口吐（`R3-23`）。
 
 **KNX 角色**：用 `OpenPLC_KNX` 的 sketch 在 `.ino` 里写一行 `OPENPLC_KNX_ROLE(TP_DEVICE);` 或 `OPENPLC_KNX_ROLE(IP_ROUTER);`（同 `OPENPLC_APP_VERSION` 的写法），没写就编不过；IDE 菜单里没有 KNX 角色（`R3-24`，[M3](../M3-app-runtime.md)）。
 

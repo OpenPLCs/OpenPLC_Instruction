@@ -74,19 +74,18 @@ flowchart TD
 | **R3-20** | KNX 换角色不死机 | `OpenPLC_KNX` 开机时 KNX 数据区头部的角色和本程序的不同（换了 TP 设备 0x07B0 / IP 路由器 0x091A，或 2026-10-16 之前写的、不带角色的头部），或上次写数据区时中途断电，都不恢复数据、按未编程运行，用 ETS 重新下载一次即恢复（用户 2026-10-16 定） | `T3-22` | 🟡 主机侧 `T3-22` 已过；上板待验 |
 | **R3-21** | KNX 对象映射只写一处 | 板上端口和 ETS 组对象的对应关系只写在 `$ETSPROD` `knx_objects.json`；`$ETSPROD` `tools/gen_product.py` 由它生成产品文件 `OpenPLC_TP.xml` / `.knxprod` 和板卡包的 `libraries/OpenPLC_KNX/src/openplc_knx_objects.h`，例程从头文件取对象编号和订货号 | `T3-23`、P2（镜像 17） | ✅ 2026-10-17：`T3-23`、P2、P5 已过，签出的 `.knxprod` ETS 5.7 导入成功（用户） |
 | **R3-22** | 日志与诊断 | core 不往 RS232 端子写任何东西；系统日志带前缀走 USB 口（就是用户的 `Serial`），电脑打开 USB 口时先吐 SRAM4 开机缓存再接实时输出，sketch 里可关；IAPTool 有命令随时读缓存（`IAPTool log <ip>`，[IAP-PROTOCOL.md](M1/IAP-PROTOCOL.md)「`openplc_log`」）；故障信息复位后经 USB 口吐出（决策 147） | `T3-24`（缓存本身）、`T3-26`（死机记录复位后从 USB 口吐出） | 🟡 2026-11-09 真板：IDE 串口监视器、pyserial 开口都吐出缓存；`IAPTool log` 读出；BusFault 后复位，`[sys][FAULT]` 从 USB 口吐出 |
-| **R3-23** | 端子归用户 | `RS232` 端子只在用户程序调 `RS232.begin()` 时才打开（先配串口引脚、再拉高 `RS232_EN`），`RS232.end()` 关；用户打印用 `Serial`（即 `SerialUSB`，USB 口）；系统日志带 `[sys]` 前缀，sketch 里写 `OPENPLC_SYSTEM_LOG(OFF);` 可让它不往 USB 口吐；USB 口没打开时系统日志只进缓存、不拖慢程序；例程不等电脑，只打一次的输出（开头的说明、一次性的结果、初始化失败的原因）在 `Serial` 从没连变成连上时补打（复位后 USB 必然断开重连，串口工具要重开；等 3 秒不够，实测过） | 待定，和 `R1-43` 一起定 | ⬜ |
+| **R3-23** | 端子归用户 | `RS232` 端子只在用户程序调 `RS232.begin()` 时才打开（先配串口引脚、再拉高 `RS232_EN`），`RS232.end()` 关；用户打印用 `Serial`（即 `SerialUSB`，USB 口）；系统日志带 `[sys]` 前缀，sketch 里写 `OPENPLC_SYSTEM_LOG(OFF);` 可让它不往 USB 口吐；USB 口没打开时系统日志只进缓存、不拖慢程序；例程不等电脑，只打一次的输出（开头的说明、一次性的结果、初始化失败的原因）在 `Serial` 从没连变成连上时补打（复位后 USB 必然断开重连，串口工具要重开；等 3 秒不够，实测过） | 手工：开机到 `begin()` 前 RS232 端子不开（同 `R1-43`）；`$TEST` `run_examples.py --only RS232_Echo`（`begin()` 后收发通）；`FixtureDemo`（写了 `OPENPLC_SYSTEM_LOG(OFF)`）USB 口开着没有 `[sys]` 行、`IAPTool log <ip>` 仍读得到；`run_examples.py --skip-upload` 开口时例程补打说明。`RS232.end()` 和「不拖慢程序」没有例程用到，不测 | 🟡 2026-11-10 真板：`RS232_Echo` 收发通、开口补打说明；`FixtureDemo` USB 口开着 10 s 0 字节，`IAPTool log` 读出整份缓存；`RS232.end()`、不拖慢程序没测 |
 | **R3-24** | KNX 角色写在 sketch 里 | 用 `OpenPLC_KNX` 的 sketch 在 `.ino` 里写一行 `OPENPLC_KNX_ROLE(TP_DEVICE);`（TP 设备，0x07B0）或 `OPENPLC_KNX_ROLE(IP_ROUTER);`（IP 路由器，0x091A），同 `OPENPLC_APP_VERSION` 的写法；IDE 菜单里没有 KNX 角色。没写角色又用了这个库，编译报错并给出要加的那一行；不用 KNX 的 sketch 照常编（用户 2026-10-15 定） | P5（6 个 KNX 例程按各自写的角色编过）；没写角色报错 手工 | 🟡 2026-10-17 已实现，未编译验证 |
-| **R3-25** | 认出板子 | Arduino IDE 端口列表里板子的 COM 口旁标出板子名（`boards.txt` 声明 `upload_port.0.vid=0x0483`、`upload_port.0.pid=0x5740`）；电脑经 USB 打开板子的串口或经网口单独给板子发请求时，LED3（PE2，[HARDWARE-FACTS.md](../hardware/HARDWARE-FACTS.md)）快闪约 2 s 后恢复原状态，广播发现不闪（[决策 161](../tables/DECISIONS.md)）；闪烁和网络一样靠 `delay()` 或 `loop()` 返回推进，`loop()` 长时间不调 `delay()` 时只亮不闪（同 `R3-07`） | 手工：两块板都接着，IDE 各选一次、开一次串口监视器、经网口上传一次，看哪块闪 | 🟡 2026-11-09 单板实测：IDE 端口列表 COM17 标 `OPEN-PLC`；常调 `delay()` 的 sketch 下串口助手开口快闪；`loop()` 一圈 1.5 s 的 sketch 下 USB 开口、网口单独问只亮不闪；广播不闪；常调 `delay()` 时的网口单独问、两块板同时接着没测 |
+| **R3-25** | 认出板子 | Arduino IDE 端口列表里板子的 COM 口旁标出板子名（`boards.txt` 声明 `upload_port.0.vid=0x0483`、`upload_port.0.pid=0x5740`）；电脑经 USB 打开板子的串口或经网口单独给板子发请求时，LED3（PE2，[HARDWARE-FACTS.md](../hardware/HARDWARE-FACTS.md)）快闪约 2 s 后恢复原状态，广播发现不闪（[决策 161](../tables/DECISIONS.md)）；装了板卡包的 IDE 2 在端口下拉框里选中板子（USB 口或网口）时，那块板同样快闪，装完要重启一次 IDE（[决策 177](../tables/DECISIONS.md)）；闪烁和网络一样靠 `delay()` 或 `loop()` 返回推进，`loop()` 长时间不调 `delay()` 时只亮不闪（同 `R3-07`） | 手工：两块板都接着，IDE 下拉框里各选一次 USB 口和网口、开一次串口监视器、经网口上传一次，看哪块闪 | 🟡 2026-11-09 单板实测：IDE 端口列表 COM17 标 `OPEN-PLC`；常调 `delay()` 的 sketch 下串口助手开口快闪；`loop()` 一圈 1.5 s 的 sketch 下 USB 开口、网口单独问只亮不闪；广播不闪；2026-11-10 `loop()` 很快返回的 `FixtureDemo` 下网口单独问快闪约 2 s；2026-11-11 Windows 上 IDE 2.3.10 下拉框选中 USB 口、网口都快闪（决策 177），Linux / macOS 没测；两块板同时接着没测 |
 
 **共 25 条。其中 18 条有测试用例直接测它，7 条没有。**
 
 | 「谁证明」是什么 | 条数 | 哪些 |
 |---|---|---|
 | 有 `T3-xx` 用例直接测 | **18** | `R3-01` `R3-03` `R3-05` `R3-06` `R3-08` `R3-09` `R3-10` `R3-11` `R3-12` `R3-13` `R3-14` `R3-15` `R3-16` `R3-17` `R3-18` `R3-20` `R3-21` `R3-22` |
-| 纯手工 | **4** | `R3-02` `R3-07` `R3-19` `R3-25` |
+| 纯手工 | **5** | `R3-02` `R3-07` `R3-19` `R3-23` `R3-25` |
 | 静态检查 P5 + 手工 | **1** | `R3-24` |
 | 只有静态检查 | **1** | `R3-04` |
-| 还没定 | **1** | `R3-23` |
 
 > 静态检查算不算证据，判据见 [M1](M1-firmware-upgrade.md)。
 > `P4` 测的是变体头自洽、`P2` 测的是它和 `fmc.c` 不分叉 —— 都不是「用户不会误碰」，
@@ -112,6 +111,8 @@ flowchart TD
 **`R3-20`**：角色写在头部的 hardwareType（6 字节）前两字节，即编译进程序的掩码版本 `MASK_VERSION`（`$CORE_REPO` `libraries/OpenPLC_KNX/src/OpenPLC_KNX.cpp` 在 `readMemory()` 之前设）；对不上走协议栈现成的「数据无效」分支（`knx/memory.cpp` `readMemory()`），旧数据留在 flash 里，直到 ETS 下次下载整块重写。写数据区时先擦扇区、写头部以外的数据，**最后写含头部的那个 32 字节 flash word**（`knx_nvm.cpp` `knx_nvm_sector_write()`），中途断电时头部仍是 `0xFF`、按无效处理。
 
 **`R3-24`**：编译前 `$CORE_REPO` `system/extras/prebuild.sh` 从 `.ino` 里读出角色，生成 `{build.path}/sketch/openplc_knx_role.h`（定义 `MASK_VERSION`、`KNX_FLASH_SIZE=16384` 和 `OPENPLC_KNX_ROLE()` 宏），经 `build.opt` 用 `-include` 交给每个编译单元，所以协议栈自己的 `.cpp` 也看到同一个掩码；头文件内容不变就不改写，不换角色不重编。没写角色时头文件只有宏、不定义 `MASK_VERSION`，`OpenPLC_KNX` 的头文件据此 `#error`。角色只认单独成行、没被 `//` 注释掉的那一行；写了两个不同的角色或拼错，`prebuild.sh` 直接报错。
+
+**`R3-25` 选中即闪**：扩展源码在 `$CORE_REPO` `system/extras/openplc-identify/`，由板卡包根目录的 `post_install.bat` / `post_install.sh` 拷进 `~/.arduinoIDE/plugins/openplc-identify/`、`pre_uninstall` 删掉。扩展经 IDE 自带的 `vscode-arduino-api` 听选中端口的变化：USB 口只认 VID:PID `0483:5740`，Windows 上用系统的 .NET `SerialPort` 拉起 DTR 再关（Node 直接打开不拉 DTR），Linux / macOS 上打开设备文件即拉起；网口只认发现属性里 `deviceName=STM32H743` 的，向它的地址和端口发一条 `openplc_server_where_r_y`。
 
 ## 3 · 测试怎么跑
 

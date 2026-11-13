@@ -6,8 +6,8 @@
 
 | 仓 | 测什么 | 入口（在那个仓的根目录跑） |
 |---|---|---|
-| `$BOOT` | bootloader 的主机 C 测试（T1-16、T1-33、T2-22–T2-34 中归 bootloader 的）、T4-06（工装 DAC 缓冲）、P16、P17 | `cd tests && cmake --preset local && cmake --build --preset local && ctest --preset local` |
-| `$CORE_REPO` | P3、P4、P5、P15、P19、T2-21、T3-07、T3-08、T3-09、T3-10、T3-12、T3-22、T3-25 | `python tests/selfcheck.py`（`--full` 加上约 45 分钟的 P5） |
+| `$BOOT` | bootloader 的主机 C 测试（T1-16、T1-33、T1-36、T2-22–T2-34 中归 bootloader 的）、T4-06（工装 DAC 缓冲）、P16、P17 | `cd tests && cmake --preset local && cmake --build --preset local && ctest --preset local` |
+| `$CORE_REPO` | P3、P4、P5、P15、P19、T2-21、T3-07、T3-08、T3-09、T3-10、T3-12、T3-22、T3-24、T3-25 | `python tests/selfcheck.py`（`--full` 加上约 45 分钟的 P5） |
 | `$TOOL` | T1-15、T1-35、T1-19 / T1-20 | `python tests/selfcheck.py` |
 | `$PORTTOOL` | T4-01 到 T4-05 | `TestCase/test.sh all`（`quick` 跳过浏览器那步） |
 | `$TEST` | 契约（P1、P2、P11、P20、T1-18）、整机（`TestCase.exe`、上板脚本、T1-34、T1-37、T1-27、T3-05） | `python tools/selfcheck.py`（`--quick` 跳过慢的；上板脚本不进自检） |
@@ -183,7 +183,7 @@ T1-07–T1-10 和 T1-11 都要求设备处于 bootloader 且以太网已起。�
 | `$CORE_REPO/tests/sd_lib/` | `$CORE_REPO/tests` 下 `ctest --preset local`，需要 gcc 和 CMake | **T3-12** `OpenPLC_SD` 的文件操作：真 FatFs 跑在内存盘上，格式化后写、追加、读回、删、建目录、列目录 |
 | `$CORE_REPO/tests/knx_role/` | `$CORE_REPO/tests` 下 `ctest --preset local`，需要 gcc 和 CMake | **T3-22** KNX 换角色后的开机恢复：真 `knx/memory.cpp` `device_object.cpp` 读内存里的假数据区，别的角色或不带角色的头部一个字节都不恢复，同角色照常恢复 |
 | `$CORE_REPO/tests/variant_check/` | `python tests/variant_check/build.py`，需要 arduino-cli（环境变量 `ARDUINO_CLI` / `ARDUINO_CLI_CONFIG`） | **P4** Arduino 变体头的编译期断言。目前两个：`m4_fmc_pins`（FMC 保留脚表 39 个自洽）、`uart_routing`（printf 控制台在 USART3/PC10，扩展口留着 UART4/PH13-14）。**编不过就是变体头坏了，不是 sketch 坏了** |
-| `$CORE_REPO/tests/examples_build/` | `python tests/examples_build/build.py [--only LIB]`，需要 arduino-cli | **P5** 编译板卡包里**每一个能在这块板上编的 example**（自有库 + 上游库）。⚠️ **约 45 分钟，故意不进 selfcheck** —— 见下 |
+| `$CORE_REPO/tests/examples_build/` | `python tests/examples_build/build.py [--only LIB]`，需要 arduino-cli | **P5** 编译板卡包里**每一个 example**（只有自有库带例程，决策 181）。⚠️ **约 45 分钟，故意不进 selfcheck** —— 见下 |
 | `host/renode/` | `python host/renode/run.py [--only NAME] [--boot BIN]`，需要 arduino-cli、Renode（`$RENODE`）和 CubeIDE（bootloader 从当前 `$BOOT` 源码现编；`--boot` 给一个现成的镜像就跳过编译） | **T3-05** `OpenPLC_Ports` 的每个例程在 Renode 里经真 bootloader 启动，判启动链、`setup()`、`loop()`、没跑飞。判据和测不到什么见 [M3 应用运行环境](../modules/M3-app-runtime.md) 的「测试怎么跑」节。⚠️ **约 25 分钟（每个例程先编译），进 selfcheck，`--quick` 跳过** |
 | `host/renode/` | `python host/renode/boot_outputs.py`，需要 arduino-cli、Renode 和 CubeIDE（把 `$BOOT` 工作区拷进临时目录编，不碰 `$BOOT/Debug/`） | **T1-37** 开机输出置 0：真 bootloader 跳进 `SystemLED`，DO1–DO8、PA4、PA5、PB14 在五个时刻都是推挽输出、电平为低；BOR 档位不是 3 时开机日志警告、是 3 时不警告。判据和测不到什么见 [M1 固件升级](../modules/M1-firmware-upgrade.md) 的「测试怎么跑」节。⚠️ **约 11 分钟（编 bootloader 和例程占大头）**，进 selfcheck，`--quick` 跳过 |
 | `host/renode/` | `python host/renode/boot_entry.py`，需要 arduino-cli、Renode 和 CubeIDE（同 T1-37） | **T1-27 / T1-25** 真 bootloader 怎么决定进上传模式：不按 BOOT0 跳进 app；按住 BOOT0 过开机窗口、10 s 前松开 → 上传模式、不恢复出厂；SRAM4 里放 CDC 请求 → CDC 上传模式且 `MX_LWIP_Init` 没跑，放以太网请求的对照里跑了。判据和测不到什么见 [M1 固件升级](../modules/M1-firmware-upgrade.md)。⚠️ **十几分钟**，进 selfcheck，`--quick` 跳过 |
@@ -193,7 +193,7 @@ T1-07–T1-10 和 T1-11 都要求设备处于 bootloader 且以太网已起。�
 
 ### P5 · example 不能腐烂
 
-**范围**：自有库（`OpenPLC_*`）和上游库的例程都编。上游例程里本来就不面向 H743 的（别的芯片的外设、这块板没有的 USB 功能）列在 `build.py` 的排除表里，每条带一句理由（决议 68）。
+**范围**：自有库（`OpenPLC_*`）的例程。上游库在板卡包里不带例程（决策 181）。
 
 **什么时候跑**：改了 `OpenPLC_Arduino_PKG` 的任何库之后，以及发版前。**不在 `selfcheck` 里** —— selfcheck 是"改完代码就跑"的东西，往里加 45 分钟只会让人不跑它。
 
@@ -213,7 +213,7 @@ python tests/examples_build/build.py --only SDRAM  # 只挑一个库
 | `P2` | `$TEST/tools/check_mirror_sync.py` | 跨仓镜像（清单见 ARCHITECTURE.md「跨仓镜像的代码」） + RTC 备份寄存器占用 | ✅ `$TEST` |
 | `P3` | `$CORE_REPO/tests/check_core_sync.py` | `$CORE_LIVE` 与 git 仓库一致 | ✅ `$CORE_REPO` |
 | `P4` | `$CORE_REPO/tests/variant_check/build.py` | Arduino 变体头的编译期断言 | ✅ `$CORE_REPO` |
-| `P5` | `$CORE_REPO/tests/examples_build/build.py` | 板卡包里每个能在这块板上编的 example 都编得过 | ⛔ 约 45 分钟，故意不进 |
+| `P5` | `$CORE_REPO/tests/examples_build/build.py` | 板卡包里每个 example 都编得过 | ⛔ 约 45 分钟，故意不进 |
 | `P7` | `$PROD/tools/check_status_sync.py` | **三头对账**：需求表 ↔ 用例表 ↔ `selfcheck.py` 的 `CATALOG` | ✅ `$PROD` |
 | `P8` | `$PROD/tools/check_doc_dupes.py` | 同一条主张没有写在两份文档里 | ✅ `$PROD` |
 | `P9` | `$PROD/tools/check_doc_paths.py` | 文档里点名的每条路径都存在，链接的锚点和路径型链接文字也对得上 | ✅ `$PROD` |
@@ -349,7 +349,7 @@ sketch 打 `RESULT <名字> PASS|FAIL` 和 `MEASURE <名字> <数>`，脚本按�
 
 ```
 # 在 $TEST 下；<build> 换成任意空目录
-arduino-cli compile --warnings all --config-file <ARDUINO_CLI_CONFIG> --fqbn OpenPLC_Alpha:stm32:OPEN-PLC:pnum=PLC_H743,usb=CDCgen,upload_method=cdcMethod --build-path <build> onboard/sdram/RAM_Speed
+arduino-cli compile --warnings all --config-file <ARDUINO_CLI_CONFIG> --fqbn OpenPLC_Alpha:stm32:OPEN-PLC:pnum=PLC_H743,usb=CDCgen --build-path <build> onboard/sdram/RAM_Speed
 python tools/upload_and_watch.py --bin <build>/RAM_Speed.ino.bin --key Output/five-paths-keys/wipe/wipe_root.pem --ports COM12 --tail-seconds 20
 ```
 

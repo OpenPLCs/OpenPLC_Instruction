@@ -79,7 +79,7 @@ DO1–DO8 置 0、AO 的 PA4 / PA5 拉低（AO 0 mA）、KNX 发送脚 PB14 拉�
 STM32_Programmer_CLI -c port=SWD -ob BOR_LEV=3
 ```
 
-⚠️ 这条命令的写法照 STM32CubeProgrammer 的选项字节语法，**还没在本板上跑过**；写完后板子上电，开机日志里不再有那行警告就算写对了。
+2026-11-11 在板子 UID …0039 上跑过：`OPTSR_CUR` 从 `0x0BC6AAF0` 变成 `0x0BC6AAFC`，复位后开机日志里不再有那行警告。
 
 ## 复位原因交给 app（决策 80）
 

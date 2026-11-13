@@ -11,7 +11,7 @@ IDE 自带的 CLI 在 `$IDE/resources/app/lib/backend/resources/arduino-cli`（W
 ```
 & $ARDUINO_CLI compile --warnings all `
   --config-file $ARDUINO_CLI_CONFIG `
-  --fqbn "OpenPLC_Alpha:stm32:OPEN-PLC:pnum=PLC_H743,usb=CDCgen,upload_method=cdcMethod" `
+  --fqbn "OpenPLC_Alpha:stm32:OPEN-PLC:pnum=PLC_H743,usb=CDCgen" `
   --build-path "<IDE 的 sketch 缓存目录>/<hash>" `
   "$TEST/onboard/rs232/SerialPort"
 ```
@@ -20,18 +20,17 @@ IDE 自带的 CLI 在 `$IDE/resources/app/lib/backend/resources/arduino-cli`（W
 
 - **`--config-file` 必须带**，否则找不到 Arduino15 packages 和用户库目录
 - **`--warnings all` 必须带** —— arduino-cli 默认 `-w`，什么警告都不打；IDE 里那个 All 档是 IDE 自己的设置，CLI 不继承
-- FQBN 和 sketch 路径能从缓存目录的 `build.options.json` 读出来，**别硬猜** —— 菜单项增删过几次，手写的 FQBN 会缺段；2026-10-17 之前的缓存目录里还带着 `xusb=` / `knxrole=`，arduino-cli 不认已删的菜单，照下表改
+- FQBN 和 sketch 路径能从缓存目录的 `build.options.json` 读出来，**别硬猜** —— 菜单项增删过几次，手写的 FQBN 会缺段；2026-10-17 之前的缓存目录里还带着 `xusb=` / `knxrole=`，2026-11-13 之前的带着 `upload_method=`，arduino-cli 不认已删的菜单，照下表改
 - `--build-path` 指向 IDE 自己用的缓存目录，这样 `.bin` 落在 IAPTool 一直用的老位置
 
 ### 板卡包的菜单（Tools 下）
 
-2026-10-17 清理过，只留这四个（`$CORE_REPO` `boards.txt`）：
+只留这三个（`$CORE_REPO` `boards.txt`）。上传走哪条由 Port 里选中的端口决定：USB 串口调 `IAPTool cdc`，网口调 `IAPTool ether`（[决策 180](../tables/DECISIONS.md)）；只这两条过 bootloader 的签名和版本闸门（[M1](../modules/M1-firmware-upgrade.md)）：
 
 | 菜单（FQBN 键） | 选项 | 用途 |
 |---|---|---|
 | Board part number（`pnum`） | `PLC_H743` | 唯一一项；变体头、flash 大小都挂在它下面 |
 | USB support（`usb`） | `CDCgen`（默认）：`Serial` 是 USB 口；`CDC`：`Serial` 落到 UART4 | `CDC` 只给 Renode 用（Renode 不模拟 USB） |
-| Upload method（`upload_method`） | `cdcMethod`（USB）、`ethMethod`（网口），都是 IAPTool | 只这两条过 bootloader 的签名和版本闸门（[M1](../modules/M1-firmware-upgrade.md)） |
 | Force flash（`forceflash`） | `no`（默认）、`yes` | 一次性允许烧低版本 |
 
 删掉的，和为什么：
@@ -39,7 +38,7 @@ IDE 自带的 CLI 在 `$IDE/resources/app/lib/backend/resources/arduino-cli`（W
 | 删的 | 为什么 |
 |---|---|
 | `xusb`（USB 速度） | 板上只接了 OTG_FS 的 PA11 / PA12，High Speed 两项用不了（[HARDWARE-FACTS](../hardware/HARDWARE-FACTS.md)「USB FS 只接了 PA11 / PA12」）；只剩 Full Speed 就不用选 |
-| `upload_method` 的 STM32CubeProgrammer SWD / Serial / DFU | `platform.txt` 按旧脚本的位置参数调 `stm32CubeProg.sh`，现在的脚本只认 `-i` / `-f`，三项都跑不起来；就算接上，默认写 `0x08000000`，会盖掉 bootloader。要 ST-Link 直烧用 STM32CubeProgrammer 本身 |
+| `upload_method`（Upload method） | CDC / ETH 由选中的端口决定，不用再选（决策 180）。原来的 STM32CubeProgrammer SWD / Serial / DFU 三项更早删掉：`platform.txt` 按旧脚本的位置参数调 `stm32CubeProg.sh`，现在的脚本只认 `-i` / `-f`，三项都跑不起来；就算接上，默认写 `0x08000000`，会盖掉 bootloader。要 ST-Link 直烧用 STM32CubeProgrammer 本身 |
 | `knxrole`（KNX 角色） | 角色改在 sketch 里写 `OPENPLC_KNX_ROLE(...)`（[M3](../modules/M3-app-runtime.md) `R3-24`） |
 | `xserial` `virtio` `opt` `dbg` `rtlib` | 只声明了菜单名、没有一个选项，IDE 里本来就不显示；对应的构建值用 `platform.txt` 的默认 |
 

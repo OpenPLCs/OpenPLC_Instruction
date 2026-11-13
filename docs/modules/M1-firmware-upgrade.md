@@ -247,7 +247,7 @@ flowchart TD
 |---|---|---|---|---|
 | **R1-01** | 入口通道 | 通过 USB CDC 能把 app 烧进板子并正常启动 | `T1-23` | ✅ |
 | **R1-02** | 入口通道 | 通过以太网能烧写**停在 bootloader** 的板子 | 手工 + `T1-09` | ✅ |
-| **R1-03** | 入口通道 | 通过以太网能烧写**正在跑 app** 的板子。**不论 app 编译时菜单选的是 `cdcMethod` 还是 `ethMethod`，运行中的 app 都在 UDP 56865 上接收网口重启请求**；菜单只决定 IDE 这次上传走哪条通道（用户 2026-10-12 定）。app 不答 TCP，`getowner` 只有 bootloader 答（见 [IAP-PROTOCOL.md](M1/IAP-PROTOCOL.md#udp)） | `T1-23` | ✅ |
+| **R1-03** | 入口通道 | 通过以太网能烧写**正在跑 app** 的板子。**运行中的 app 不论是经哪条通道烧进来的，都在 UDP 56865 上接收网口重启请求**（用户 2026-10-12 定）；IDE 这次上传走哪条通道由选中的端口决定（[决策 180](../tables/DECISIONS.md)）。app 不答 TCP，`getowner` 只有 bootloader 答（见 [IAP-PROTOCOL.md](M1/IAP-PROTOCOL.md#udp)） | `T1-23` | ✅ |
 | **R1-04** | 入口通道 | 按住 BOOT0 复位能强制进入上传模式 | `T1-27` | ✅ |
 | **R1-05** | 入口通道 | 从 CDC 请求进上传模式时**不启动**以太网 | `T1-25` | ✅ |
 | **R1-06** | 入口通道 | app 请求进上传模式的通道只有一条（SRAM4 `boot_handoff_t`） | P2（查不分叉，非本功能） | 🟡 |
@@ -282,20 +282,20 @@ flowchart TD
 | **R1-35** | bootloader 自升级 | `flashboot` 的镜像签名**只接受 owner 根**，叶证书签的被拒 | `T1-30` | ✅ |
 | **R1-36** | bootloader 自升级 | 换完 bootloader 后**所有权还在**（根区在扇区 15，`flashboot` 不碰它）；根区在扇区 15 回收时**压缩** | `T1-31` `T1-33` | ✅ |
 | **R1-37** | bootloader 自升级 | **没有根**的板子拒绝 `flashboot`，按不按 BOOT0 都一样（决策 72：没有根就没有人能签这个镜像，`IAP_server.c:465-468`） | `T1-32` | ✅ |
-| **R1-38** | 入口通道 | 从 Arduino IDE 的 Upload（`upload_method=ethMethod`，不传任何参数）烧**正在跑 app** 的板子：用用户配置目录里的密钥（没有根的出厂板在 bootloader 里，第一次上传自动认领，见 [M2 归属与信任](M2-ownership.md)）；重启请求发出后 IAPTool 按「等板子回来」找它：答 `BOOTLD` 就传；三次请求后还答 `CUSAPP` 就报「板子没接受重启请求」——密钥不对**或**请求丢了，提示进 bootloader 后用 `getowner` 确认；没人答就只报「板子没回来」，不提密钥（找密钥的顺序：`--key` → `local_config.json` 的 `signing_key` → 用户配置目录的 `openplc/keys/fw_signing_key.pem` → IAPTool 旁的 `keys/`） | `T1-34` `T1-35` | ✅ |
+| **R1-38** | 入口通道 | 从 Arduino IDE 的 Upload（选中网口，不传任何参数）烧**正在跑 app** 的板子：用用户配置目录里的密钥（没有根的出厂板在 bootloader 里，第一次上传自动认领，见 [M2 归属与信任](M2-ownership.md)）；重启请求发出后 IAPTool 按「等板子回来」找它：答 `BOOTLD` 就传；三次请求后还答 `CUSAPP` 就报「板子没接受重启请求」——密钥不对**或**请求丢了，提示进 bootloader 后用 `getowner` 确认；没人答就只报「板子没回来」，不提密钥（找密钥的顺序：`--key` → `local_config.json` 的 `signing_key` → 用户配置目录的 `openplc/keys/fw_signing_key.pem` → IAPTool 旁的 `keys/`） | `T1-34` `T1-35` | ✅ |
 | **R1-39** | 启动切换 | 从 bootloader 第一批语句到 sketch 第一次写之前，DO 全断开、AO 0 mA、继电器断开（决策 81），KNX 发送脚 PB14 为低、不占总线 | `T1-36` `T1-37` | ✅ 2026-10-08 上板：AO 经 470 Ω 约 5.6 mV、DO 约 0.3 mV、继电器不响、PB14 低；毫秒级瞬态待示波器 |
 | **R1-40** | 入口通道 | 烧录前比版本：要烧的 sketch 比板上正在跑的旧就拒绝；`--force` 只放行一次，烧成功后再用被拒（见「版本闸门」） | `T1-38` | ✅ |
 | **R1-41** | 传输与校验 | IAPTool 经 USB 和网口上传都读板子的最终结论：被拒报错、退出码非 0（决策 124，见「IAPTool 怎么判上传结论」） | `T1-35` | ✅ 2026-10-14 真板：已撤销的叶经 USB 上传报错、退出码 1，板上原 app 不动；最后一块之后的拒收只有 `T1-35` 单元测试 |
 | **R1-42** | 入口通道 | IDE 不勾「上传时显示详细输出」时 IAPTool 只打关键行和进度条（十行以内），勾了打全（决策 124） | `T1-34` `T1-35` | ✅ |
 | **R1-43** | 日志与诊断 | bootloader 不往 RS232 端子写任何东西（死机时也不写）；日志走 USB 口（同一个口设成 1200 波特时进 IAP 模式，决策 176），电脑打开 USB 口之前的输出存在 SRAM4 的开机缓存里；故障信息存进复位后不丢的内存（格式见 [BOOT-LOG.md](M1/BOOT-LOG.md)），SWO 保留给开发；**USB 初始化失败、不枚举或没人读时，开机、跳进 app、经网口上传都不受影响**（用户 2026-10-17）（决策 147） | 手工：复位后 12 s 内 RS232 端子收 0 字节；不插 USB 开机、经网口上传；死机记录见 `T3-26`。USB 不枚举这一种造不出来，不测 | 🟡 2026-11-09 真板：复位后 12 s 内 RS232 端子 0 字节；不插 USB 开机、经网口上传成功；死机记录复位后从 USB 口吐出 |
-| **R1-44** | 入口通道 | 板子停在 bootloader 里时，电脑经 USB 打开板子的串口或经网口单独给板子发请求，LED3（PE2）快闪约 2 s；广播发现不闪（[决策 161](../tables/DECISIONS.md)） | 手工：两块板都停在 bootloader，经 USB 和网口各找一次，看哪块闪 | 🟡 2026-11-09 单板实测：USB 开口、网口单独问都快闪，广播不闪；两块板同时接着没测 |
+| **R1-44** | 入口通道 | 板子停在 bootloader 里时，电脑经 USB 打开板子的串口或经网口单独给板子发请求，LED3（PE2）快闪约 2 s；广播发现不闪（[决策 161](../tables/DECISIONS.md)） | 手工：两块板都停在 bootloader，经 USB 和网口各找一次，看哪块闪 | ✅ 2026-11-09 单板实测：USB 开口、网口单独问都快闪，广播不闪；2026-11-11 两块板都停在 bootloader（经网口叫醒、经 USB 叫醒各一轮），IDE 2 选中哪块的口就是哪块闪 |
 | **R1-45** | 会话 | USB 上传到一半主机关口或拔线，bootloader 丢掉这次会话；不复位就能再传（TCP 断开早就这样，R1-16） | `T1-39`（拔线）；杀掉 IAPTool 那条手工：经 USB 上传到一半杀掉，不复位直接再传一次 | ✅ 2026-11-09 真板：传了 3 块后杀掉，紧接着再传，认出板子并传成；传了 3 块时拔线、插回后不复位再传也成 |
 
 **共 45 条。其中 35 条有测试用例直接测它，10 条没有。**
 
 | 「谁证明」是什么 | 条数 | 哪些 |
 |---|---|---|
-| 有 `T1-xx` 用例直接测 | **35** | `R1-01`–`R1-05` `R1-08`–`R1-12` `R1-15`–`R1-29` `R1-34`–`R1-42` `R1-45`（`R1-40` 在 bootloader 替身上跑；`R1-38` 的 IDE 上传在替身上跑，真板子未认领那一次还没上板验，见 ¹⁰） |
+| 有 `T1-xx` 用例直接测 | **35** | `R1-01`–`R1-05` `R1-08`–`R1-12` `R1-15`–`R1-29` `R1-34`–`R1-42` `R1-45`（`R1-40` 在 bootloader 替身上跑；`R1-38` 的 IDE 上传在替身上跑，见 ¹⁰；真板子未认领那一次 2026-11-11 上板过：出厂板 …0039 经 `arduino-cli upload -l network`，用户目录里生成密钥、输出 `Claimed.`、app 起来） |
 | 纯手工 | **5** | `R1-13` `R1-30` `R1-31` `R1-43` `R1-44` |
 | 只有静态检查 P2 | **1** | `R1-06` |
 | 静态检查 P2 + 两块板实测 | **1** | `R1-14` |
@@ -315,7 +315,7 @@ flowchart TD
 
 | 需求 | 留下了什么 |
 |---|---|
-| `R1-13`（定位靠 UID 不依赖 MAC） | 复现配方在 `$TEST/onboard/iap_probe/iap_probe.ino` 的文件头；两块板同时在台上按 UID 定位还没做 |
+| `R1-13`（定位靠 UID 不依赖 MAC） | 复现配方在 `$TEST/onboard/iap_probe/iap_probe.ino` 的文件头；2026-11-11 上板：两块板（UID …0029、…0039）同一网段，按 UID 广播发现定位，只让目标那块重启进 bootloader，另一块保持 app，两个方向各一次 |
 | `R1-30`（复位原因） | 2026-10-08 上板：按复位键报 `PIN`、断 24 V 报 `POR`、上传后重启报 `SOFT` |
 | `R1-31`（备份域失效能被发现） | 实地证据在 `docs/engineering/HOW-TO-RUN-TESTS.md`，不写脚本的理由也在那 |
 
@@ -364,7 +364,7 @@ M1 的上板用例和契约用例在 `$TEST` 跑；部件测试的命令前写�
 | `T1-31` | `R1-36` | 换完 bootloader 所有权还在 | 升级前后各跑一次 `IAPTool getowner`，generation 和根公钥完全一致 | 同 `T1-29`，脚本自带前后对比 | 真板子；替身测不了：依赖 `T1-29` 真写进扇区 0 | ✅ |
 | `T1-32` | `R1-37` | 没有根的板子拒绝 `flashboot` | 恢复出厂后发 `flashboot` → `Refused`，扇区 0 不变，板子照旧启动原 bootloader | `python tools/run_flashboot.py --bin <boot.bin> --key <owner.pem> --unclaimed`（先恢复出厂）| 真板子；替身（`python host/fakeboard/run_protocol.py --only T1-32`，裸命令，IAPTool 发命令前就会拦）证明无根板对 `flashboot` 回 `Refused`；认领后真写扇区 0 仍要真板子 | ✅ 2026-10-08 上板 ¹¹ |
 | `T1-33` | `R1-36` | **压缩留对了东西**：只留当前生效那条和还生效的作废 | 喂一块故意乱掉的根区（合法首条 + 一条坏格式 + 一条签名换主 + 一条**无签名**的高 generation），跑**真实**的 `owner_slot_build_carry()`：留下的只有签名换主那条（**签名被剥掉**），**无签名那条没有被压缩扶正**；点名当任根的 `'R'`（R4 忽略的那种）被丢掉，另两条保留。**再把结果写进擦过的区重扫一遍**，根、generation、作废名单全部不变 ⁸ | `$BOOT/tests`：`ctest --preset local -R T1-33` | 主机侧（要 gcc/clang） | ✅ |
-| `T1-34` | `R1-38` `R1-42` | IDE 那条上传命令在 bootloader 替身上走通：板子在跑 app，未认领 / 已认领 / 密钥不对各一次 | `arduino-cli upload -l network -p <本机网卡 IP> --discovery-timeout 10s`（`upload_method=ethMethod`）上传编好的 `OpenPLC_Ports/DO_Outputs`：①未认领（出厂板，在 bootloader 里）、用户目录里没有密钥 → 在用户目录生成密钥并认领，退出码 0，输出有 `Claimed.`（决策 72）；②已认领、owner 密钥放在用户目录 → 退出码 0，IAPTool 打的行（`[INFO]` 加进度条）不超过 10 行（决策 124）；③用户目录里是另一把密钥 → 替身里 app 一侧拒绝重启请求，退出码非 0，输出有 `did not accept the reboot request`。①②还要**替身那边验过整个镜像**（`Checksum and signature OK`），且收完镜像后真的复位、回到 app ¹⁰ | `python host/fakeboard/run_ide_upload.py` | bootloader 替身（本机），**手工跑，不进 selfcheck** ¹⁰ | ✅ |
+| `T1-34` | `R1-38` `R1-42` | IDE 那条上传命令在 bootloader 替身上走通：板子在跑 app，未认领 / 已认领 / 密钥不对各一次 | `arduino-cli upload -l network -p <本机网卡 IP> --discovery-timeout 10s` 上传编好的 `OpenPLC_Ports/DO_Outputs`：①未认领（出厂板，在 bootloader 里）、用户目录里没有密钥 → 在用户目录生成密钥并认领，退出码 0，输出有 `Claimed.`（决策 72）；②已认领、owner 密钥放在用户目录 → 退出码 0，IAPTool 打的行（`[INFO]` 加进度条）不超过 10 行（决策 124）；③用户目录里是另一把密钥 → 替身里 app 一侧拒绝重启请求，退出码非 0，输出有 `did not accept the reboot request`。①②还要**替身那边验过整个镜像**（`Checksum and signature OK`），且收完镜像后真的复位、回到 app ¹⁰ | `python host/fakeboard/run_ide_upload.py` | bootloader 替身（本机），**手工跑，不进 selfcheck** ¹⁰ | ✅ |
 | `T1-35` | `R1-38` `R1-41` `R1-42` | IAPTool 自己的主机侧单元测试：密钥查找顺序、串口层、协议常量与绑物理网卡拨号、USB 上传结论判读、`-v` 开关 | 全部 `go test` 通过；密钥按「`--key` → `local_config.json` → 用户配置目录 → exe 旁边」的顺序找到；结论判读（两条路共用）对假串口：拒收文本（含和最后一块的 `OK` 粘在一起）报错，读口报错或口从列表消失算接受，既无回答又没复位算未确认；每块的 `OK` 以 `OK` 开头才算 | `$TOOL`：`go test . ./internal/... ./iapproto/... ./netiface/...` | 主机侧，进 selfcheck | ✅ |
 | `T1-36` | `R1-39` | 开机输出置 0 | `safe_outputs_init()` 之后 11 个脚（DO1–DO8、PA4、PA5、PB14）都是推挽输出、电平为低，同端口其他脚不变，对应 GPIO 时钟已开 | `$BOOT/tests`：`ctest --preset local -R T1-36` | 主机侧（假 GPIO 寄存器），测不到真引脚电平和时序 | ✅ |
 | `T1-37` | `R1-39` | 开机输出置 0，经真 bootloader 跳进 app 之后仍是 0；BOR 检查 | 当前 `$BOOT` 工作区编出的 bootloader + 不碰这些脚的 `SystemLED`：`HAL_Init()` 入口（`safe_outputs_init()` 刚做完）、`server_jump_to_app()` 入口、app 的 `Reset_Handler` 入口（`HAL_DeInit()` 后又置了一次）、`setup()` 入口、app 跑满 20 s 时各读一次 GPIO，11 个脚（DO1–DO8、PA4、PA5、PB14）都是推挽输出、`ODR` 为 0。BOR：选项字节 `BOR_LEV` 为 0 时串口有那行警告，用选项字节编程序列改成 3 后没有 ¹² | `python host/renode/boot_outputs.py` | Renode，进 selfcheck（`--quick` 跳过） | ✅ |

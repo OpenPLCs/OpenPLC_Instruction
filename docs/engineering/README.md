@@ -83,6 +83,4 @@
 
 [HOW-TO-RUN-PORTTOOL-TESTS.md](HOW-TO-RUN-PORTTOOL-TESTS.md) —— PortTool 仓的测试，以及手上没板子时怎么用模拟板联调。**单条用例的判据和跑法在各模块文档的测试表里**，这份只装跨用例的部分。
 
-[PORTTOOL-DEMO-ON-BOARD.md](PORTTOOL-DEMO-ON-BOARD.md) —— 工装软件真板子演示那天的操作单：动手准备、三层演示、出问题时退回模拟板。
-
 [BOOTLOADER-STAND-IN.md](BOOTLOADER-STAND-IN.md) —— IAPTool 契约测试用的 bootloader 替身：哪些是真代码、哪些是桩、测不到什么。

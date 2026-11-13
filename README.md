@@ -66,7 +66,6 @@ One main document per module (requirements, test cases, design), with its detail
 | [docs/engineering/TEST-DESIGN.md](docs/engineering/TEST-DESIGN.md) | How the tests are built, and why |
 | [docs/engineering/BOOTLOADER-STAND-IN.md](docs/engineering/BOOTLOADER-STAND-IN.md) | Bootloader stand-in: the real code on the PC instead of a hand-written fake board |
 | [docs/engineering/HOW-TO-RUN-PORTTOOL-TESTS.md](docs/engineering/HOW-TO-RUN-PORTTOOL-TESTS.md) | PortTool tests |
-| [docs/engineering/PORTTOOL-DEMO-ON-BOARD.md](docs/engineering/PORTTOOL-DEMO-ON-BOARD.md) | Fixture software demo on a real board |
 
 ## 6. Decisions and tables
 

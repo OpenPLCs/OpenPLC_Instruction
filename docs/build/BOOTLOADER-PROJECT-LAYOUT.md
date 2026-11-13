@@ -15,7 +15,7 @@
 
 - 目标芯片：STM32H743IIKx（Cortex-M7，2 MB Flash / 1 MB RAM）
 - 它讲的是 **bootloader** 工程（`$BOOT`），和 Application 分开（app 侧是 Arduino core，见 [ARCHITECTURE.md](../repo/ARCHITECTURE.md)）
-- 构建：STM32CubeIDE 经典 Managed Build（`.cproject` + `Debug/`）。仓库里那份 `CMakeLists.txt` 是 CubeMX 生成的，**当前构建不用它**
+- 构建：STM32CubeIDE 经典 Managed Build（`.cproject` + `Debug/`）。仓库里那份 `CMakeLists.txt` 由模板生成（文件头这么写），**当前构建不用它**
 
 ## 2. Flash 分区
 
@@ -33,7 +33,7 @@
 |---|---|---|
 | bootloader | `0x08000000`–`0x0801FFFF`（sector 0，128K） | 本工程 |
 | application | `0x08020000` 起，上限 `0x081E0000` | 1,835,008 B |
-| └ KNX 数据（只在程序链接了 `OpenPLC_KNX` 时） | `0x081C0000`（bank2 sector 6，app 区最后一个扇区） | 只有协议栈数据 16 KiB（ETS 写的个体地址和各表；IP 路由器 0x091A 的过滤表在 512 起、长 8192，至少要 8704 B，多出的给 TP 设备 0x07B0 放链接），大小由 `$CORE_REPO/boards.txt` 的 `-DKNX_FLASH_SIZE` 定，布局见 `$CORE_REPO/libraries/OpenPLC_KNX/src/knx_config.h`。这种程序上限因此是 1,703,936 B（1664 KiB），构建时由 `$CORE_REPO/system/extras/postbuild.sh` 检查 |
+| └ KNX 数据（只在程序链接了 `OpenPLC_KNX` 时） | `0x081C0000`（bank2 sector 6，app 区最后一个扇区） | 只有协议栈数据 16 KiB（ETS 写的个体地址和各表；IP 路由器 0x091A 的过滤表在 512 起、长 8192，至少要 8704 B，多出的给 TP 设备 0x07B0 放链接），大小 `KNX_FLASH_SIZE` 由 `$CORE_REPO/system/extras/prebuild.sh` 按 sketch 里的 `OPENPLC_KNX_ROLE()` 生成的头文件定，布局见 `$CORE_REPO/libraries/OpenPLC_KNX/src/knx_config.h`。这种程序上限因此是 1,703,936 B（1664 KiB），构建时由 `$CORE_REPO/system/extras/postbuild.sh` 检查 |
 | bootloader 状态 | `0x081E0000`（bank2 sector 7，128K） | 校准值 8K + 根区 8K + metadata 约 112K（511 条）+ 完整标记，见 [SECTOR-15.md](../modules/M1/SECTOR-15.md) |
 
 **板卡包给 app 的链接上限就是 `upload.maximum_size`（1,835,008 B，等于 bootloader 的 `IAP_APP_MAX_SIZE`）**：`variants/STM32H7xx/H743/ldscript.ld` 的 `FLASH` 长度直接用 `LD_MAX_SIZE`，不再减 `LD_FLASH_OFFSET`，因为 `platform.txt` 传进来的已经是 app 上限。
@@ -66,6 +66,7 @@
 | `IAPServer/iap_keyderive.c` | 读芯片 UID（`getuid`、发现身份串、owner 记录） |
 | `IAPServer/net_rand.c` | lwIP 的随机种子取自 RNG |
 | `IAPServer/sha256.c` | SHA-256 |
+| `IAPServer/boot_log.c` | SRAM4 开机日志缓存，格式见 [BOOT-LOG.md](../modules/M1/BOOT-LOG.md) |
 | `IAPServer/IAP_boot_handoff.c` | **SRAM4 里的交接记录**：app 用它请求进上传模式，bootloader 用它把复位原因交给 app |
 | `IAPServer/safe_outputs.c` | 开机和交权时把 DO、AO、KNX 发送脚置 0（决策 81） |
 | `IAPServer/bor_check.c` | 开机检查 BOR 档位 |
@@ -73,7 +74,7 @@
 | `IAPServer/udp_server.c` | lwIP UDP 设备发现，含全设备发现限流 |
 | `Core/Src/usbd_cdc_flash.c` | flash 擦除/编程，含扇区地址表 |
 | `Core/Src/fmc.c` | 外部 SDRAM 初始化 + 上电时序 + 自检。**SDRAM staging 的基础** |
-| `USB_DEVICE/*` | USB CDC 通道（1200 bps 敲门由 app 处理，不在这里） |
+| `USB_DEVICE/*` | USB CDC 通道（只跑 IAP 命令；1200 波特进 IAP 模式由 app 处理，不在这里，决策 176） |
 | `Core/Src/relay.c` | 继电器开关函数，只有工装固件调用；开机不动继电器（决策 71） |
 | `Core/Src/crc.c` | 硬件 CRC32 |
 | `Core/Src/rtc.c` | RTC 初始化。**不存「为什么进 bootloader」** —— 那在 SRAM4 |
@@ -87,6 +88,6 @@
 
 ## 6. 构建配置
 
-只保留一个 Debug 配置（`-O0`）；Debug 图标和"直接烧录"图标都用它的产物，不再需要 Release。
+只保留一个 Debug 配置（C 编译优化 `-Os`）；Debug 图标和"直接烧录"图标都用它的产物，不再需要 Release。
 
 ---

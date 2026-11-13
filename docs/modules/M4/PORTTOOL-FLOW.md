@@ -29,9 +29,10 @@ flowchart TB
 
     subgraph BOARD["板子 · PORTTOOL_ENABLE=1"]
         LOOP["PortTool_Run 超循环<br/>收命令 + 跑 tick"]
-        SESS["会话表<br/>din · dout · relay · ain<br/>aout · temp · rs232 · rs485"]
+        SESS["会话表<br/>din · dout · relay · ain · aout · temp · rs232<br/>rs485 · can · knx · eth · usb · sd · sdram"]
+        RUN["pt.run 一次性动作<br/>跑完回命令循环"]
         LOOP --> SESS
-        LOOP --> HAND
+        LOOP --> RUN
     end
 
     HW(("端口硬件<br/>端子 / 引脚"))
@@ -42,11 +43,11 @@ flowchart TB
     LOOP -.->|"裸 printf 日志<br/>给人看"| GO
 
     SESS <--> HW
-    HAND <--> HW
+    RUN <--> HW
 
     style LOOP fill:#e8f0fe,stroke:#4285f4,stroke-width:2px
     style SESS fill:#e8f0fe,stroke:#4285f4
-    style HAND fill:#fef7e0,stroke:#f9ab00
+    style RUN fill:#fef7e0,stroke:#f9ab00
 ```
 
 **判定和序列全在上位机** —— 固件只报原始采样，一个字都不判。改判据不用重烧固件。
@@ -57,8 +58,8 @@ flowchart TB
 
 | | ✅ **会话** | 🎯 **一次性动作** |
 |---|---|---|
-| 是什么 | 一个可启停的周期采样器，`porttool_port_t` 结构（porttool.h:52-77（`$BOOT/TestCase/porttool/porttool.h`）） | 一个跑完就返回、把量到的数写成一行 `OK` 的函数 | 一个独占的传统 bring-up 测试入口函数 |
-| 现有几个 | **13 个**：`din`、`dout`、`relay`、`ain`、`aout`、`temp`、`rs232`、`rs485`、`can`、`knx`、`eth`、`usb`、`sd` | **8 个**：见 [A.3](#a3-怎么控制--全部-8-条命令) 的 `pt.run` 表 |
+| 是什么 | 一个可启停的周期采样器，`porttool_port_t` 结构（`$BOOT/TestCase/porttool/porttool.h`） | 一个跑完就返回、把量到的数写成一行 `OK` 的函数 |
+| 现有几个 | **14 个**：`din`、`dout`、`relay`、`ain`、`aout`、`temp`、`rs232`、`rs485`、`can`、`knx`、`eth`、`usb`、`sd`、`sdram`（`porttool.c` 的 `ports[]`） | **24 个**：见 [A.3](#a3-怎么控制--全部-12-条命令) 的 `pt.run` 表 |
 | 怎么启动 | `pt.start <port> [k=v …]` | `pt.run <target>` |
 | 能并存吗 | **能**，多个会话同时跑，主循环轮流 tick | 跑的时候独占 CPU，跑完就还回来 |
 | 参数能热改吗 | **能**，`pt.set` 不重启会话 | **不收参数**，尺度编在固件里并写进应答 |
@@ -71,11 +72,11 @@ flowchart TB
 
 **惰性初始化**：外设只有在 `pt.start` 到达时才配置（各个会话自己的 `*_inited` 标志），没启动过的端口保持复位状态。
 
-## A.3 怎么控制 —— 全部 8 条命令
+## A.3 怎么控制 —— 全部 12 条命令
 
 **一行一条，`\r` 或 `\n` 结尾，不回显。**PC 发来的一行上限 256 字节（`PORTTOOL_LINE_MAX`，为放下六路各不相同的继电器参数，决策 123），超长整行丢弃并回 `ERR line too long`；板子发出的每一行（应答、caps、帧）上限仍是 192 字节（`PORTTOOL_REPLY_MAX`） —— 不截断成另一条含义的命令。空行忽略。
 
-派发在 porttool.c:191-233（`$BOOT/TestCase/porttool/porttool.c`）。
+派发在 `$BOOT/TestCase/porttool/porttool.c` 的 `dispatch()`。另有一条 `pt.aodiag`，是 AO 排查用的临时命令（`porttool_aodiag.h` 标 TEMPORARY），不在本表。
 
 | 命令 | 参数 | 干什么 | 前置条件 | 不满足会怎样 |
 |---|---|---|---|---|
@@ -88,18 +89,24 @@ flowchart TB
 | `pt.set` | `<port> k=v …` | 改一个**正在跑**的会话的参数 | 端口名存在 **且正在跑**；参数合法 | `ERR no such port` / `ERR <port> is not running` / `ERR <port> set refused: <原因>` |
 | `pt.stop` | `<port>` 或 `all` | 停会话并恢复副作用 | 端口名存在（`all` 总是合法） | `ERR no such port` |
 | `pt.echo` | `<port> <数>` | **把板子刚发的那个数原样送回去**，板子在此基础上累加。这是需求 R4 的回环 | 端口存在、**正在跑**、且 `loop=ctrl` | `ERR no such port` / `ERR <port> is not running` / `ERR <port> takes its echo on its own link, not on this one` |
+| `pt.hold` | `<毫秒>`、`0` 或不带参数 | 看门狗：武装并续期到 `<毫秒>` 后；`0` 解除；不带参数报 `OK hold=<毫秒> left=<剩余>` 或 `OK hold=off`。到期板子停掉所有会话、点故障灯，并发一帧 `!hold t=… expired=1 span=…`（[PROD-CONFIG-ITEMS.md](PROD-CONFIG-ITEMS.md)「F · 安全联锁」） | 毫秒不超过 `PORTTOOL_HOLD_MAX_MS` | `ERR hold="<词>" is not a number of milliseconds` / `ERR hold=<n> is over the <上限> ms ceiling` |
+| `pt.led` | `fault=0` 或 `fault=1` | 点亮 / 熄灭指示灯 LED3（PE2），应答 `OK led fault=<n>` | — | `ERR pt.led takes fault=0 or fault=1` |
 | `pt.run` | `<target>`，**或不带参数** | 不带参数 = 列出全部一次性动作；带参数 = 跑一次、**回到命令循环**、用一行 `OK <target> k=v …` 报出量到的数 | 目标名存在 | `ERR no such run target "<name>" - run pt.run with no argument to list them` |
 
-**`pt.run` 现有这些目标**（`TestCase/porttool/porttool_run.c` 里的表），按硬件归成四组：
+**`pt.run` 现有这些目标**（`TestCase/porttool/porttool_run.c` 的 `targets[]`）：
 
 | 目标 | 报什么 | 注意 |
 |---|---|---|
 | `sdram.probe` | `base` `size` `ready` `databus` `addrbus` | 自己按需 `MX_FMC_Init()` —— 工装镜像跑在 Phase 1，那里 FMC 还没起来 |
 | `sdram.sweep` | `ready` `patterns` `words_each` `mismatches` `first_bad` `bad_pattern` `write_ms` `verify_ms` | **整片 64 MiB 四种花样**，产线要的那个「压力测试零错误」。⚠️ 2026-09-08 实测 6.5 s，方案里的 `timeout_ms` 要留够 |
 | `sdram.crc` | `ready` `offset` `bytes` `crc` | 只读，算一段窗口的 CRC32。固件留着，面板和随附方案都不调用（[决策 141](../../tables/DECISIONS.md)） |
-| `sd.probe` | `detected` `ready` `blocks` `block_size` `mib` `v2x` `class` `fs` | `detected=0` 是没插卡，`detected=1 ready=0` 是接口。`fs` 读引导扇区得出（不经 FatFs），MBR 和 GPT 分区都顺着第一个分区去读（[决策 169](../../tables/DECISIONS.md)）：`fat12` / `fat16` / `fat32` / `exfat`；`none` 是没有引导签名（没格式化或读不出）；`unknown` 是有签名但不是这几种 |
-| `sd.integrity` | `mounted` `wrote` `read_back` `identical` `bytes` 两个 CRC `fresult` | 一轮 4 KiB |
+| `sd.probe` | `detected` `ready` `blocks` `block_size` `mib` `v2x` `class` `fs` `err` | `detected=0` 是没插卡，`detected=1 ready=0` 是接口。`fs` 读引导扇区得出（不经 FatFs），MBR 和 GPT 分区都顺着第一个分区去读（[决策 169](../../tables/DECISIONS.md)）：`fat12` / `fat16` / `fat32` / `exfat`；`none` 是没有引导签名（没格式化或读不出）；`unknown` 是有签名但不是这几种 |
+| `sd.integrity` | `mounted` `identical` `passes` `passed` `bytes_each` `bytes_total` `fresult`；一轮时多 `wrote` `read_back` 和两个 CRC，多轮时多 `elapsed_ms` `first_bad_pass` | 写一个文件读回比对，`bytes=` 每轮字节数、`passes=` 轮数（默认 1） |
+| `sd.speed` | `mounted` `bytes` `write_ms` `read_ms` `write_bps` `read_bps` `fresult` | 写读各一遍计时，速度单位字节/秒；不核对内容 |
 | `sd.put` / `sd.get` / `sd.ls` / `sd.rm` / `sd.eject` | `ok` `name` `size` `crc` `count` `error` | 卡上 `PORTTOOL` 文件夹的文件传递，数据走网口或 USB，见 B.11（决策 120） |
+| `eth.link` | `found` `addr` `id` `link` `autoneg` `speed` `fd` `bsr` `scsr` `mdio_errors` | 只经 MDIO 读 PHY，不起 lwIP；`found=0`（没有 PHY，板子坏）和 `link=0`（多半没插线）分开报 |
+| `rs485.pins` | `checked` `busy` `dir_low` `tx_low` `dir_high` `tx_high` `follows` | PD4（/RE、DE）和 PD5（TX）当普通 GPIO 拉低、拉高各读回一次，什么都不用接；RS485 会话在跑时只回 `checked=0 busy=1` |
+| `reset.cause` | `cause` `rsr` | 板子上次为什么起来：`POR` / `PIN` / `IWDG` / `WWDG` / `SOFT` / `BOR`，`rsr` 是 RCC->RSR 原值 |
 | `vref` | `src` `mv` `ok` | 模拟基准：`src=int`（片内 VREFBUF 2.5 V，开机默认）或 `src=ext`（VREFBUF 高阻，VREF+ 由外部接入），不带 `src` 只报当前。切换后重量一次 VREF+（`mv`），`ok` 同 `!ain` 的 `ok`。见 B.4「外部基准」（[决策 158](../../tables/DECISIONS.md)） |
 | `lse` | `drv` `ready` `start_ms`，失败时多 `fallback` | 32.768 kHz 晶振的驱动档：不带 `drv` 只报当前；`drv=low\|mlow\|mhigh\|high` 先关 LSE、设档、再开，计起振用时（最长 5 s），起不来就回 `mlow` 重起并报 `fallback=mlow`。RTC 停走起振那几秒，日期时间不清零。**选的档复位后还在**（LSE 靠电池一直开着，开机改不动），测完切回 `mlow`（[决策 159](../../tables/DECISIONS.md)） |
 | `lse.freq` | `ready` `hz` `ppm` `ms` | 32.768 kHz 晶振的频率：TIM16 的 TI1 接 LSE，每 8 个 LSE 周期捕获一次，累计约 1 s（`ms`）的定时器计数算出 `hz`（三位小数）和相对 32768 Hz 的 `ppm`（两位小数）。定时器时钟由 25 MHz 主晶振经 PLL 来，**主晶振的误差也算在里面**，所以只记录不判。LSE 没在跑时只回 `ready=0`（[决策 160](../../tables/DECISIONS.md)） |
@@ -157,19 +164,19 @@ flowchart TB
 
 ```text
 pt.caps
-  OK porttool=0.5.0 ports=17 lines=45
-  OK port=din kind=session blk=D term=D02-D09 channels=8 loop=ctrl params=ch,period running=0
-  OK vals=din ch=1,2,3,4,5,6,7,8 period=200
-  OK limits=din ch:1..8 period:50..
-  OK port=relay kind=session blk=B term=B01-B12 channels=6 loop=ctrl params=ch,mode,on,close,open,count running=0
+  OK porttool=0.18.9 ports=… lines=… hold=1 led=1      <- hold= / led= 说明固件认 pt.hold、pt.led
+  OK port=din board=upper kind=session blk=D term=D02-D09 channels=8 loop=ctrl params=ch,mode,period running=0
+  OK vals=din ch=1,2,3,4,5,6,7,8 mode=level period=200
+  OK limits=din ch:1..8 mode:level|quad period:50..
+  OK port=relay board=lower kind=session blk=B term=B01-B12 channels=6 loop=ctrl params=ch,mode,on,close,open,count running=0
   OK vals=relay ch=1,2,3,4,5,6 mode=hold on=1:0,2:0,3:0,4:0,5:0,6:0 close=2000 open=2000 count=10
   OK terms=relay B01+B02,B03+B04,B05+B06,B07+B08,B09+B10,B11+B12
-  OK port=can kind=session blk=C term=C07,C08 channels=1 loop=link params=baud,mode,period running=0
-  OK port=sdram kind=run blk=- term=U6 channels=1 loop=none runs=sdram.probe,sdram.sweep,sdram.crc
-  OK port=led kind=run blk=- term=- channels=1 loop=none runs=led.blink
+  OK port=can board=upper kind=session blk=C term=C07,C08 channels=1 loop=link params=baud,mode,period running=0
+  OK port=sdram board=bridge kind=session blk=- term=U6 channels=1 loop=ctrl params=wait,period running=0 runs=sdram.probe,sdram.sweep,sdram.crc
+  OK port=led board=bridge kind=run blk=- term=- channels=1 loop=none runs=led.blink
   …
     ^ 表头声明 lines=<n>，后面**恰好**跟 n 行。**行数不等于 1 + ports** ——
-      一个端口可能占 2~3 行（port= 形状、vals= 当前取值、terms= 端子标签），
+      一个端口可能占 2~5 行（port= 形状、vals= 当前取值、limits= 范围、terms= 端子标签、info= 只读事实），
       而以后还会有更多。**上位机读固定行数，不要靠「读到没有了」判断结束** ——
       这条链上没有结束标记，而正在跑的会话会把 ! 帧插到回复中间。
 
@@ -177,7 +184,7 @@ pt.caps
   就占 31 个字符，合成一行 195 字节），被截断的 caps 行就是面板永远不会渲染的那个参数；T4-01 查行长。
 
 pt.id
-  OK uid=00340041XXXXXXXXXXXXXXXX porttool=0.5.0
+  OK uid=00340041XXXXXXXXXXXXXXXX porttool=0.18.9 rx_errors=0 rx_dropped=0
 
 pt.cal
   OK cal=4F43414C01000400…    <- 56 字节按 flash 里的顺序，每字节两位大写十六进制，共 112 位
@@ -219,10 +226,9 @@ pt.run match ms=3000
   OK match busy=0 ms=3000 baud=115200 bps=500000 rs485=2 rs485_ok=1 rs485_bytes=72 rs485_junk=0 can=4 can_ok=1 can_frames=9 can_junk=0 can_lec=7
   OK match busy=1                <- RS485 或 CAN 会话在跑
 
-  …共 14 行
-
-  OK handing over to can - this does not come back, reset the board to return to the port tool
-  （之后是那个测试自己的裸 printf，再也不回命令循环）
+pt.run
+  OK run=sd.probe         detect pin, card identification, capacity and class
+  …共 24 行，一个目标一行
 
 （未知命令）
   ERR unknown command "pt.foo"
@@ -243,7 +249,7 @@ pt.run match ms=3000
 !<port> t=<ms> <字段…>
 ```
 
-`t` 是 `HAL_GetTick()`，板子开机以来的毫秒数，**会在 49.7 天回绕**。生成在 porttool.c:39-49（`$BOOT/TestCase/porttool/porttool.c`），整帧上限 192 字节。
+`t` 是 `HAL_GetTick()`，板子开机以来的毫秒数，**会在 49.7 天回绕**。生成在 `$BOOT/TestCase/porttool/porttool.c` 的 `PortTool_Frame()`，整帧上限 192 字节。
 
 ### `!din`
 
@@ -380,7 +386,7 @@ pt.run match ms=3000
 
 从现有代码那条「不许假通过」来的，上位机必须跟着守：
 
-1. **参数给了但写错，拒绝启动，并把原因说清楚** —— 不静默沿用旧值。沿用了就是在读别的引脚，而面板上看不出来（porttool_din.c:30-32（`$BOOT/TestCase/porttool/porttool_din.c`） 的注释就是这条）。上位机**必须原样显示 ERR 文本**，不要归纳成「启动失败」。
+1. **参数给了但写错，拒绝启动，并把原因说清楚** —— 不静默沿用旧值。沿用了就是在读别的引脚，而面板上看不出来（`$BOOT/TestCase/porttool/porttool_din.c:76-77` 的注释就是这条）。上位机**必须原样显示 ERR 文本**，不要归纳成「启动失败」。
 2. **`!` 帧永远带完整位域** —— 一条采样自己就说得清来自哪个脚，不依赖上位机记得当初选了什么。
 
 ## A.7 一次完整会话的时序
@@ -394,17 +400,17 @@ sequenceDiagram
     participant HW as 端口硬件
 
     Note over FW: 上电，打 banner，进命令循环
-    FW-->>PC: === port tool 0.1.0 ===
+    FW-->>PC: === port tool <版本> ===
 
     rect rgb(232, 240, 254)
     Note over PC,FW: ① 握手：先问能力，再渲染界面
     U->>PC: 打开页面
     PC->>FW: pt.caps
-    FW-->>PC: OK porttool=0.1.0 ports=2
-    FW-->>PC: OK port=din running=0 channels=8 …
-    FW-->>PC: OK port=relay running=0 channels=6 …
+    FW-->>PC: OK porttool=<版本> ports=… lines=<n> hold=1 led=1
+    FW-->>PC: OK port=din … channels=8 … running=0
+    FW-->>PC: …（恰好 n 行）
     PC->>FW: pt.id
-    FW-->>PC: OK uid=… porttool=0.1.0
+    FW-->>PC: OK uid=… porttool=<版本> rx_errors=0 rx_dropped=0
     Note over PC: 按 caps 渲染卡片<br/>固件没报的端口不显示
     end
 
@@ -451,6 +457,8 @@ stateDiagram-v2
 
     Parse --> Reply : pt.caps · pt.id · pt.cal · pt.list
     Parse --> Reply : pt.calw · 擦写扇区 15，阻塞约 1–2 s
+    Parse --> Reply : pt.hold · pt.led · pt.echo
+    Parse --> Reply : pt.run · 跑完一个目标，会话不停
     Parse --> Start : pt.start
     Parse --> Set : pt.set
     Parse --> Stop : pt.stop
@@ -464,13 +472,9 @@ stateDiagram-v2
     Set --> Idle : OK set 或 ERR
     Stop --> Idle : 释放执行器 · OK stopped
     Reply --> Idle
-
-    Hand --> Handover : 无论目标名对不对，先停掉所有会话
-    Handover --> Idle : 目标名不存在 · ERR
-    Handover --> [*] : 进入独占入口，不返回
 ```
 
-**控制口 UART4 用中断收进 512 字节的环形缓冲，不轮询**（`$BOOT/TestCase/porttool/porttool.c:65-66`、`:694-719`）：`printf` 逐字节阻塞发送，一帧就是上百次阻塞调用，轮询接收在这期间不看线，命令字节就丢了。2026-09-08 轮询时实测：会话开着发 8 条命令，一条应答整条丢、一条被改成 `ppt.id`，`rx_errors` 到 9；会话停着同样 8 条全对。缓冲满了丢最新的字节、不覆盖读了一半的行。
+**控制口 UART4 用中断收进 512 字节的环形缓冲，不轮询**（`$BOOT/TestCase/porttool/porttool.c` 的 `rx_ring`、`UART4_IRQHandler()`）：`printf` 逐字节阻塞发送，一帧就是上百次阻塞调用，轮询接收在这期间不看线，命令字节就丢了。2026-09-08 轮询时实测：会话开着发 8 条命令，一条应答整条丢、一条被改成 `ppt.id`，`rx_errors` 到 9；会话停着同样 8 条全对。缓冲满了丢最新的字节、不覆盖读了一半的行。
 
 **采样周期下限 50 ms**（`PORTTOOL_PERIOD_MIN_MS`）：115200 ≈ 11.5 KB/s，而 `printf` 是阻塞的，周期太小会把主循环拖死。小于 50 的请求被**静默夹到 50**，不报错 —— 上位机想知道实际周期就读 `pt.caps` 回来的 `period=`。
 
@@ -526,9 +530,9 @@ Klemmblock D，Upper Deck。代码 porttool_din.c（`$BOOT/TestCase/porttool/por
 | **测什么** | 八路数字输入的**电平**、**保持时长**、**翻转次数**。前级是 LM339 比较器 + 分压，耐 24 V 现场电平 |
 | **端子 / 引脚** | D02–D09 → `PC6 PB5 PB6 PB7 PH10 PH11 PI5 PI6`（bit0 = DI1 起算） |
 | **怎么接** | 要么不接（验高阻输入本身），要么把 24 V 现场信号接上。也可以**从 DO 引一根 8 芯线过来**（DO 输出 24 V，DI 耐 24 V，一根线覆盖 16 个通道）。⚠️ 未接线时读 0 还是读 1 取决于有没有接 24 V，两种都不是故障，见 [HARDWARE-FACTS.md「Digital In 八路」](../../hardware/HARDWARE-FACTS.md) |
-| **敲什么** | `pt.start din ch=1,3,5 period=200`<br/>参数：`ch=` 1..8 逗号分隔（默认全 8 路）、`period=` 毫秒（默认 200，下限 50）<br/>热改：`pt.set din ch=2,4`　停：`pt.stop din` |
+| **敲什么** | `pt.start din ch=1,3,5 period=200`<br/>参数：`ch=` 1..8 逗号分隔（默认全 8 路）、`mode=level|quad`（默认 level）、`period=` 毫秒（默认 200，下限 50）<br/>热改：`pt.set din ch=2,4`　停：`pt.stop din` |
 | **看到什么算过** | `!din` 帧的 `v=` 位域跟着外部驱动变；DI\<n\> 拉高时对应 bit 为 1，拉低为 0，**和实际驱动逐位一致** |
-| **坑** | ⚠️ MCU 侧有外部 10k 上拉，固件配 `GPIO_NOPULL`，**不开内部上拉**。<br/>⚠️ **「恒读 0」和「恒读 1」是两个不同故障**（[HARDWARE-FACTS.md:152](../../hardware/HARDWARE-FACTS.md)）：恒 0 = 有 24 V 但那一路没接线；恒 1 = **整个 24 V / 模拟供电没上来**。上位机必须分开报，不能都说成「低电平」 |
+| **坑** | ⚠️ MCU 侧有外部 10k 上拉，固件配 `GPIO_NOPULL`，**不开内部上拉**。<br/>⚠️ **「恒读 0」和「恒读 1」是两个不同故障**（[HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)「Digital In 八路」）：恒 0 = 有 24 V 但那一路没接线；恒 1 = **整个 24 V / 模拟供电没上来**。上位机必须分开报，不能都说成「低电平」 |
 
 **同一组引脚上的编码器计数**：`mode=quad` 把八个脚当四个编码器（第 n 组是 DI(2n−1)、DI(2n)），主循环里软件采样解码，不是定时器编码器模式（`porttool_din.c`）；帧字段见 A.5。测试时由标准机的 `dout mode=quad` 送脉冲（B.6、C.3.6「DI 编码器计数」）。
 
@@ -559,7 +563,7 @@ Klemmblock C。代码 porttool_rs232.c（`$BOOT/TestCase/porttool/porttool_rs232
 | **敲什么** | `pt.start rs232 baud=19200 period=3000`。`baud=` 只收 9600 / 19200 / 38400 / 57600 / 115200 / 230400（默认 115200 = 不切）；230400 能不能用看 USB-232 转换器（收发器 MAX3221 约 250 kbps，转换器未选型）。决策 104 |
 | **怎么切** | 板子先用旧波特率回 `OK started rs232 line=<新>`，发完再切；PC 读到 `line=` 跟着切。切过去以后，**板子收到第一个字节之前不发任何帧**（PC 还没跟上时发的帧只会是乱码）。`pt.stop rs232` / `pt.stop all` 回 `line=115200`，发完两边切回。⚠️ 切换期间**任何收到的字节都算 PC 还在**：PC 每 0.5 s 发一个空行（`ptboard` 自动做），板子 3 s 一个字节都没收到就自己切回 115200 并报 `!line … reverted=1` —— 不这样 PC 一死，板子就停在一个没人知道的波特率上 |
 | **看到什么算过** | 在选定波特率下，`!rs232` 帧的 `seq − rx` 恒为 1、`miss` 保持 0。`rxlines=` 跟着涨说明接收方向一直在过真流量；帧里 `baud=` 报当时线上的波特率 |
-| **坑** | ⚠️ **`loop=self`，不是 `loop=ctrl`。**回环确实走控制口，但对这个端口来说那正是重点：字节双向穿过端子、MAX3221 和 PC10/PC11。**别的端口那个计数器只说明控制口活着；这里它就是判据。**<br/>⚠️ 面板上**没有**那个进去就没有命令循环了，只能按复位键。命令行敲得到，那是刻意的行为而不是一次点击 |
+| **坑** | ⚠️ **`loop=self`，不是 `loop=ctrl`。**回环确实走控制口，但对这个端口来说那正是重点：字节双向穿过端子、MAX3221 和 PC10/PC11。**别的端口那个计数器只说明控制口活着；这里它就是判据。** |
 
 ## B.8 `rs485` —— RS485 链路回环（会话 ✅）
 
@@ -574,7 +578,7 @@ Klemmblock C。代码 porttool_rs485.c（`$BOOT/TestCase/porttool/porttool_rs485
 | **怎么接** | **必须有对端。**USB-RS485 适配器 A 接 **A10**（J11-3）、B 接 **A11**（J11-2）。对端把收到的那行原样送回去 —— 上位机的链路应答器 |
 | **敲什么** | `pt.start rs485 baud=115200 period=3000`。`baud=` 只收 9600 / 19200 / 38400 / 57600 / 115200 |
 | **看到什么算过** | `!rs485` 的 `seq − rx` 恒为 1、`miss` 保持 0。`junk=` 保持 0（有数说明线上有东西但不是应答） |
-| **坑** | ⚠️ **`pt.echo` 对这个端口是被拒绝的**（`ERR rs485 takes its echo on its own link, not on this one`）。在控制口上答它会让计数器在这对线已经死掉时照样往上涨 —— 那是这套工装绝不允许的假通过。<br/>⚠️ **半双工，而且是一条网络**：`PD4` 同时驱动 /RE 和 DE，发送时接收器是关的，**板子听不到自己**。没有对端就永远闭合不了 —— 那是接线不对，不是会话有问题。<br/>⚠️ **状态仍然从控制口上报。**上位机在一个地方读所有端口的状态；用 RS485 汇报 RS485 的健康，恰好在最需要的时候读不到。<br/>⚠️ 同一块硬件还有一个深度入口（五项引脚级诊断），它挂在**同一张卡**上，`pt.caps` 的会话行带 `targets=rs485` |
+| **坑** | ⚠️ **`pt.echo` 对这个端口是被拒绝的**（`ERR rs485 takes its echo on its own link, not on this one`）。在控制口上答它会让计数器在这对线已经死掉时照样往上涨 —— 那是这套工装绝不允许的假通过。<br/>⚠️ **半双工，而且是一条网络**：`PD4` 同时驱动 /RE 和 DE，发送时接收器是关的，**板子听不到自己**。没有对端就永远闭合不了 —— 那是接线不对，不是会话有问题。<br/>⚠️ **状态仍然从控制口上报。**上位机在一个地方读所有端口的状态；用 RS485 汇报 RS485 的健康，恰好在最需要的时候读不到。<br/>⚠️ 同一块硬件还有一个一次性动作 `pt.run rs485.pins`（PD4 / PD5 引脚自检，A.3），`pt.caps` 的会话行带 `runs=rs485.pins` |
 | **坑 · 收窗口** | ⚠️ **发完在 tick 里限时 20 ms 收应答，`printf` 不能落在收窗口里**（`porttool_rs485.c:33`、`:192-204`）：115200 下一个字节 87 µs，USART2 不开 FIFO 只存一个字节，打一帧的 `printf` 要 10 ms 以上，应答的第二个字节就溢出了。2026-09-09 三种波特率 265 个周期只闭合一次，线是好的 |
 | **坑 · 读寄存器** | ⚠️ **接收直接读寄存器，先清错误标志再取字节**（`port_rs485.c:91-118`）：`HAL_UART_Receive` 溢出后不清 ORE，之后每次都报错。2026-09-09 一次 stop / start 后 `rxbytes=0` 一直到复位，对端明明在回 |
 | **坑 · 每次重配** | ⚠️ **每次 `pt.start` 都重新初始化 USART2，不只第一次**（`porttool_rs485.c:91-98`）：`pt.run rs485.pins` 把 PD4 / PD5 切成 GPIO 去读，不重配复用的话会话照报发出、计数永不闭合，看起来像接线坏了（2026-09-14）。重配只要几微秒 |
@@ -630,7 +634,7 @@ flowchart TD
     style OK fill:#e6f4ea,stroke:#34a853
 ```
 
-> ⚠️ **四个会静默毁掉判据的坑**（[HARDWARE-FACTS.md:154-222](../../hardware/HARDWARE-FACTS.md)）：
+> ⚠️ **四个会静默毁掉判据的坑**（[HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)「模拟量」「模拟输出」「模拟输入前端」三节）：
 > 1. **VREFBUF 不使能** → ADC 读出 `0x8000` / `0x4000` 这类**看起来像真数据**的值。板上没有基准芯片
 > 2. **模拟跳线 JP1–JP9 出厂全开路** → `PC3_C` 和 `PA6` 彻底悬空，读到的只是悬空脚。**焊上去不可逆**。产线每块板都必须焊，没焊是坏板：读数项照常判（判不过），校准拟合的增益不在 0.5–1.5 就拒存。不从读数推跳线：悬空读数两次测得不一样（[决策 106](../../tables/DECISIONS.md)）
 > 3. **`SYSCFG_PMCR.PC3SO` 复位默认闭合** → 数字单元加载该节点，读数差约 16%。模拟采样一律置开
@@ -680,7 +684,7 @@ Klemmblock A，Lower Deck。代码 porttool_dout.c（`$BOOT/TestCase/porttool/po
 | 速率怎么算 | 执行器取这一步第一帧和最后一帧的 `rx_bytes`、`t` 之差，`down_kbps` | 同上取 `tx_bytes`，`up_kbps` |
 | 判 | 板子收到 ≥ 1 字节；速率只记录 | 板子发出 ≥ 1 字节；速率只记录 |
 
-⚠️ **`source` 每轮主循环最多发 8 包**（64 字节一包，`porttool_usb.c:345-352`）：真板上 `CDC_Transmit_FS` 忙时自己会停，但一个一直收的端点会饿死别的会话和命令通道 —— 2026-09-08 模拟板就这样卡死过。按主循环的频率，一轮 512 字节已超过线路能送的量。
+⚠️ **`source` 每轮主循环最多发 8 包**（64 字节一包，`porttool_usb.c:334-336`）：真板上 `CDC_Transmit_FS` 忙时自己会停，但一个一直收的端点会饿死别的会话和命令通道 —— 2026-09-08 模拟板就这样卡死过。按主循环的频率，一轮 512 字节已超过线路能送的量。
 
 速率用板子帧里的字节数算，不用 PC 端写出去的字节数：PC 写进系统缓冲就算写完，比真正到板子的多。面板手动选 `sink` / `source` 时 PC 端同样按这两行做（`ptpanel/link.go`）。
 
@@ -699,7 +703,7 @@ Klemmblock A，Lower Deck。代码 porttool_dout.c（`$BOOT/TestCase/porttool/po
 | **只收标准帧发送** | `tx=` 的 ID 只到 `0x7FF`（11 位）：`PortCan_Send` 只发标准帧。收的方向全局滤波器标准帧、扩展帧都收，但 `PortCan_Receive` 不报帧类型，扩展帧按收到的 ID 报 |
 | **判不判** | 不判，只记录。端口结论照旧由 `can.peer` 等项给（决策 111） |
 
-⚠️ **回环模式下发前清 `have`、发后最多等 20 ms 收回**（`porttool_can.c:384-398`，`CAN_RX_WAIT_MS`）：发送只是放进 TX FIFO，马上收必然收不到；不清 `have` 的话等待会拿到上一帧的回复，回环永远慢一帧。两种情况 2026-09-08 都在好的收发器上测到 `miss` 按 0、1 交替。
+⚠️ **回环模式下发前清 `have`、发后最多等 20 ms 收回**（`porttool_can.c:378-391`，`CAN_RX_WAIT_MS`）：发送只是放进 TX FIFO，马上收必然收不到；不清 `have` 的话等待会拿到上一帧的回复，回环永远慢一帧。两种情况 2026-09-08 都在好的收发器上测到 `miss` 按 0、1 交替。
 
 ⚠️ **自动重发是关的**（和其余模式一样，`PortCan_Open(..., 0)`）：总线上没有别的节点应答时，这一帧只发一次、`lec=3`（应答错误），不会无限重发把总线占死。进了 `bus=off` 要停了重开会话才恢复。
 
@@ -754,8 +758,8 @@ Klemmblock A，Lower Deck。代码 porttool_dout.c（`$BOOT/TestCase/porttool/po
 |---|---|---|
 | ~~USB-C（仅 Device）~~ | — | **已实现，`usb` 会话，见 [B.9](#b9-eth--usb--满速率回送会话-)** |
 | ~~以太网~~ | — | **已实现，`eth` 会话和 `eth.link`，见 [B.9](#b9-eth--usb--满速率回送会话-)** |
-| RTC 电池 | VBAT + 32.768 kHz | 走时、备份域是否失效 |
-| 状态 LED | `PE2`（高亮低灭） | 目视 |
+| RTC 电池 | VBAT + 32.768 kHz | 日历和 LSE 已有入口（`rtc.read`、`lse`、`lse.freq`，A.3）；电池掉电后备份域是否保持还没有入口 |
+| ~~状态 LED~~ | `PE2`（高亮低灭） | **已实现，`led.blink` 和 `pt.led`，见 [A.3](#a3-怎么控制--全部-12-条命令)** |
 
 ### Junction Link —— DIN 导轨扩展口（J4，20 pin）
 
@@ -788,7 +792,7 @@ Klemmblock A，Lower Deck。代码 porttool_dout.c（`$BOOT/TestCase/porttool/po
 
 ```mermaid
 flowchart TD
-    RESET([上电 / 复位]) --> INIT["HAL_Init · SystemClock_Config<br/>MX_GPIO_Init · BOOT0_ConfigureAsInput<br/>Enable_RX_RS232 · MX_UART4_Init"]
+    RESET([上电 / 复位]) --> INIT["HAL_Init · SystemClock_Config<br/>MX_GPIO_Init<br/>工装镜像另加 Enable_RX_RS232 · MX_UART4_Init"]
     INIT --> SW{PORTTOOL_ENABLE}
 
     SW -->|"1 · 硬件测试模式"| PT["PortTool_Run<br/>永不返回"]
@@ -808,7 +812,7 @@ flowchart TD
 
 **测试模式下 `PortTool_Run()` 永不返回**，所以 BOOT0 手势、启动决策、跳 app、IAP 服务器**一个都不执行**。
 
-调用点在 main.c（`$BOOT/Core/Src/main.c`） 的 `USER CODE BEGIN SysInit` 块里，紧跟 `MX_UART4_Init()` 之后 —— UART4 起来了，工装要的就只有这个，它既是命令通道也是日志。`main.c` 里的测试入口只剩这一个（旧端口测试的宏已删，[决策 87](../../tables/DECISIONS.md)）。
+调用点在 main.c（`$BOOT/Core/Src/main.c`） 的 `USER CODE BEGIN SysInit` 块里，在 `MX_UART4_Init()`、`bor_level_report()` 之后（`Enable_RX_RS232()` 和 `MX_UART4_Init()` 也只在 `PORTTOOL_ENABLE=1` 时调）—— UART4 起来了，工装要的就只有这个，它既是命令通道也是日志。`main.c` 里的测试入口只剩这一个（旧端口测试的宏已删，[决策 87](../../tables/DECISIONS.md)）。
 
 > ⚠️ **`PORTTOOL_ENABLE` 不在任何构建配置里，要在 CubeIDE 的工程属性里手工加**（2026-09-07 定，[DECISIONS.md 第 14 条](../../tables/DECISIONS.md)）。**忘了改回 0 就发出一个开不了机的 bootloader** —— 那块板永远到不了 IAP 服务器，USB 和以太网都升不了级。所以 `PORTTOOL_ENABLE=1` 时编译会打一条 `#warning` 把这件事写进构建日志。
 不涉及烧写工具、不涉及授权 —— ST-Link 直接烧固件，开串口看结果。
@@ -832,10 +836,10 @@ flowchart LR
 
     FW -.->|"!din t=… v=0x16"| UART
     FW -.->|"OK started din"| UART
-    FW -.->|"[T1-07 ] inputs: …"| UART
+    FW -.->|"MATCH_TEST: listening …"| UART
 ```
 
-⚠️ **端子是真 ±12V，必须用 USB-RS232 适配器，接 TTL 适配器可能烧掉**（[HARDWARE-FACTS.md:17](../../hardware/HARDWARE-FACTS.md)）。
+⚠️ **端子是真 ±12V，必须用 USB-RS232 适配器，接 TTL 适配器可能烧掉**（[HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)「RS232 路径」）。
 ⚠️ **这条通道就是 RS232 端子本身的测试**：工装占用它正好让字节双向穿过端子和 MAX3221；测别的波特率时控制口一起切 —— 见 [B.7](#b7-rs232--和上位机收发可选波特率会话-)。
 ⚠️ `PB10` 拉低 = MAX3221 整片关断，printf 一个字节都出不来。`main.c` 在 `MX_UART4_Init()` 前已 `Enable_RX_RS232()`。
 
@@ -871,7 +875,7 @@ flowchart LR
 
 ### C.3.2 校准存档和扇区 15 镜像
 
-研发测试里的校准卡拟合完一路，研发点「存到本地」，PortTool 把结果按板子 UID 存到 PC 上；四路都齐了，再生成扇区 15 校准值区的镜像。研发在校准卡片上点「烧进板子」，PortTool 经控制口发 `pt.calw`，工装固件自己擦写扇区 15、读回比对（[决策 142](../../tables/DECISIONS.md)，取代决策 97 里经 ST-Link 烧；命令见 [A.3](#a3-怎么控制--全部-8-条命令)）。**工装固件只写扇区 15 的校准值区**，别的 flash 不写。
+研发测试里的校准卡拟合完一路，研发点「存到本地」，PortTool 把结果按板子 UID 存到 PC 上；四路都齐了，再生成扇区 15 校准值区的镜像。研发在校准卡片上点「烧进板子」，PortTool 经控制口发 `pt.calw`，工装固件自己擦写扇区 15、读回比对（[决策 142](../../tables/DECISIONS.md)，取代决策 97 里经 ST-Link 烧；命令见 [A.3](#a3-怎么控制--全部-12-条命令)）。**工装固件只写扇区 15 的校准值区**，别的 flash 不写。
 
 | 项 | 定案 |
 |---|---|
@@ -958,7 +962,7 @@ flowchart LR
 | bootloader 镜像 | exe 旁边的 `stage6/bootloader.hex`。放子文件夹：`start.cmd` 烧工装固件时认「文件夹里唯一的 `.hex`」 |
 | IAPTool | exe 旁边的 `stage6/IAPTool.exe`（Linux / macOS 是 `IAPTool`） |
 | demo | exe 旁边的 `stage6/FixtureDemo.ino.bin`（Arduino 编出来的文件名，不改名），源码是例程 `FixtureDemo`（[A.9](#a9-第-6-步的-demo-讲同一套协议)）；`LocateUserLevelFiles` 和另两个一起找。交付包从板卡包编出它放进来（C.4「交付包」） |
-| 上传和认领 | `IAPTool cdc <demo.bin> <板子的 USB CDC 口>`：Arduino IDE 默认上传方式（CDC Transfer、不勾 Force flash）的同一条命令（`$CORE_REPO/platform.txt` 的 `tools.cdctransfer.upload.pattern`）。板子刚烧 bootloader、没有根，这次上传就认领（决策 72）。CDC 口由调用方找，烧完 bootloader 后最多等 10 s 让它出现 |
+| 上传和认领 | `IAPTool cdc <demo.bin> <板子的 USB CDC 口>`：Arduino IDE 选中 USB 串口、不勾 Force flash 时的同一条命令（`$CORE_REPO/boards.txt` 的 `upload.tool.serial=cdctransfer`，`$CORE_REPO/platform.txt` 的 `tools.cdctransfer.upload.pattern`）。板子刚烧 bootloader、没有根，这次上传就认领（决策 72）。CDC 口由调用方找，烧完 bootloader 后最多等 10 s 让它出现 |
 | 产线根 | 产线电脑上 IAPTool 的本机私钥，没有就由 IAPTool 生成（[M2-ownership.md](../M2-ownership.md)「私钥放在哪」）。PortTool 不读不写它；板子恢复出厂后不带这个根 |
 | 缺了哪样 | 第 6 步不碰板子，记 `ERROR` 并写明缺哪个文件 |
 
@@ -1058,7 +1062,7 @@ flowchart LR
 | RS232 `rs232.peer` | 电脑和板子互发、逐帧比对；就是控制口 | 电脑（控制口的转换器） | 波特率、帧间隔 | `rs232-loopback`：不丢、收到 ≥ 1 行 | 三种都有；用户级 demo 一样切控制口波特率（A.9） |
 | RS485 `rs485.peer` | 电脑经 USB-485 和板子互发、逐帧比对 | 电脑（连接区绑 RS485 转换器） | 波特率、帧间隔 | `rs485`：不丢、无乱码、无溢出 | 三种都有；选了时长一轮轮重跑。用户级：demo 的帧没有 `overrun`，「无溢出」只在帧里有这个字段时判；判据写「板子报了才判」，没报时结果写「板子没报，不判」 |
 | CAN 对发 `can.peer` | 经收发器和线与对端互发帧 | 电脑（CANable） | 波特率、帧间隔 | `can-pc`：收到 ≥ 4 帧、无乱码、无总线错误 | 三种都有；选了时长一轮轮重跑 |
-| DO 带负载 `dout.load` | 逐路只开一路（24 V 带负载），人量压降 | 人工 | 每路 24 V 电源和端子之间的电压；可只走几路 | `high-side-drop`：压降上限上板量良品后定（[决策 128](../../tables/DECISIONS.md)） | 三种都有；工装测试里经继电器由标准机 DI 读高 / 低，不判电压（下面「DO、继电器一条链」） |
+| DO 带负载 `dout.load` | 逐路只开一路（24 V 带负载），人量压降 | 人工 | 每路 24 V 电源和端子之间的电压；可只走几路 | `high-side-drop`：压降 ≤ 1 V（暂定，上板量良品后再定，[决策 128](../../tables/DECISIONS.md)） | 三种都有；工装测试里经继电器由标准机 DI 读高 / 低，不判电压（下面「DO、继电器一条链」） |
 | 继电器开合 `relay.cycle` | 每路按吸合 / 断开时长开合到总次数，触点上接负载 | 人工（看负载） | 每路勾选、总次数；单次时另填吸合 / 断开时长或规定时长；跑完每路填负载实际开合了几次 | 每路负载反馈的实际次数 = 设定次数（[决策 130](../../tables/DECISIONS.md)） | 三种都有；选了时长时按时长跑完总次数（决策 123）；工装测试里由标准机 DI 数（下面「DO、继电器一条链」） |
 | 温度 `temp.read` | 读两路板载温度和基准电压 | 无 | 帧间隔 | `temperature`：基准 2400–2600 mV、两路 0–60 °C | 三种都有；选了时长时会话一直开着，每帧都判 |
 | 断开恢复 `eth.recover` / `usb.recover` / `rs232.recover` / `rs485.recover` / `can.recover` / `knx.recover` | 收发着的时候人拔线、再插回，记恢复用时和断开期间丢的帧（下面「断开恢复」） | 同这个口的收发项（KNX 无） | 不填数：照提示拔线、插回 | `<口>-recover`：恢复用时 ≤ 10 s、断开期间不复位（暂定，正式值由硬件工程师改方案文件）；丢帧只记录。方案里没有这一步就只记录（[决策 150](../../tables/DECISIONS.md)、决策 44） | 只在研发，只测一次 |
@@ -1108,7 +1112,7 @@ flowchart LR
 | 不过之后 | 研发测试单次跑：其余项照跑；功能 / 老化 / 用户级和时长段：停，没跑到的记 SKIPPED | 研发要看全貌；配置失败即停（决策 89） |
 | 没勾的项 | 记 SKIPPED | 报告里看得出哪些没测 |
 | 每项结论 | 通过 / 不过 / 超时 / 出错 / 只记录 / 跳过 / 停下 | `ptreport` 的结论加「只记录」 |
-| 多路的项 | AO 带负载（AO1、AO2）、DO 带负载（DO1–8：人工逐路或工装链）、DI 逐路电平（DI1–8：人工逐路或标准机逐路）、继电器开合（勾了的 RY）、温度（温度1、温度2）、研发 AI / AO / DI / DO 卡的会话（AI1、AI2，AO1、AO2 两路都记，DI 逐路电平 DI1–8、编码器计数 4 组，DO 带负载 / 翻转计数 / PWM DO1–8，只记勾了的路，[决策 137](../../tables/DECISIONS.md)）每一路一个结果（通过 / 不过 / 停下 / 出错），没有整项的结果。AI / AO 读数 / 输出本来就是每路一项 | [决策 129](../../tables/DECISIONS.md)「多路」：用户 2026-10-15「多路的就没有整项，不要整项，就是每项有自己的状态」\ |
+| 多路的项 | AO 带负载（AO1、AO2）、DO 带负载（DO1–8：人工逐路或工装链）、DI 逐路电平（DI1–8：人工逐路或标准机逐路）、继电器开合（勾了的 RY）、温度（温度1、温度2）、研发 AI / AO / DI / DO 卡的会话（AI1、AI2，AO1、AO2 两路都记，DI 逐路电平 DI1–8、编码器计数 4 组，DO 带负载 / 翻转计数 / PWM DO1–8，只记勾了的路，[决策 137](../../tables/DECISIONS.md)）每一路一个结果（通过 / 不过 / 停下 / 出错），没有整项的结果。AI / AO 读数 / 输出本来就是每路一项 | [决策 129](../../tables/DECISIONS.md)「多路」：用户 2026-10-15「多路的就没有整项，不要整项，就是每项有自己的状态」 |
 | ↳ 每路怎么记 | `ptlib.Channels` 列出路，`State.Chans` / 报告 `StepResult.Channels` 各路一条，卡片上每路一个结论标签、原因写在那一路后面（多路的项不再写整项原因），结果表、「正在进行」、日志、步号每路一行。用到结论的地方都看各路：端口结论、子测试过没过（有一路不是通过就不过）、完整测试的记录。带时长时每一路记最后一轮的结果，第一次不过就停 | |
 | ↳ 测不了的路 | 整项还没跑就被拒（没接标准机、档位不匹配等）时每一路记同一个原因；只有一部分路没接时按路分开（如 AO 带负载 AO1 接了照常测、AO2 没接记「没接标准机」）；DI 逐路电平、DO 带负载、继电器开合同一条规矩：有一路能测，完整测试就放行，没接的路各记「没接标准机」、档位不匹配的路记「出错：档位不匹配」（[决策 134](../../tables/DECISIONS.md)），被测板这一路的校准档位和配置档位不一致的路记「出错：校准档位不一致」、不去测，能测的照常测；一路都测不了才不让开始（`refCannot`） | |
 | 卡片布局 | 左边：目标（一两句）、测试方法（能分步的写 1、2、3 编号步骤，[决策 174](../../tables/DECISIONS.md)）、对端、可调参数（没有可调参数就不画这一行，决策 117）；右边「测得的数值」是一张「项目 / 预期 / 结果」表：每条判据一行，只列选中对端的判据，同配置页（没跑时结果空着，跑完带 ✅ / ❌），板子回报的其余字段也各占一行、预期空着；表下是错误提示；不再单列判据框，也不再单列读数原文。工装完整测试的子测试里右边只有「判据」：「项目 / 预期」两列，没有结果和状态 | 决策 113、116：一个数只在一处看；决策 125：配置页不显示测得的数值 |
@@ -1344,9 +1348,9 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 
 | 行 | 做法 | 为什么 |
 |---|---|---|
-| 控制口 | 下拉选串口（蓝牙串口默认不列，认法同下面「不碰的口」；勾「显示蓝牙串口」才列，这个勾选记住，连接区所有串口下拉都照它，已经选中的蓝牙口照常显示，[决策 162](../../tables/DECISIONS.md)；每项是口名和转换器的名字，像 RS232 转换器的后面标一句，上次用的标「上次用的」，找不到主机版固件时模拟板这一项灰着写原因；模拟板排最后），连接 / 断开（连上后下拉锁住），旁边「自动找」（下面「转换器自动识别」）；下面每秒一次 `pt.run rtc.read` 显示板子时间。控制口上有命令在跑时这一秒跳过，不排队 | 协议没有请求 id，命令只能一条条走；排在长命令后面的读时间会把人点的命令往后推。RS232 转换器那一句只是提示、不替人选（`web/js/conn.js:31`）：只能按转换器的名字认，不同转换器的 VID/PID 可能相同 |
+| 控制口 | 下拉选串口（蓝牙串口默认不列，认法同下面「不碰的口」；勾「显示蓝牙串口」才列，这个勾选记住，连接区所有串口下拉都照它，已经选中的蓝牙口照常显示，[决策 162](../../tables/DECISIONS.md)；每项是口名和转换器的名字，像 RS232 转换器的后面标一句，上次用的标「上次用的」，找不到主机版固件时模拟板这一项灰着写原因；模拟板排最后），连接 / 断开（连上后下拉锁住），旁边「自动找」（下面「转换器自动识别」）；下面每秒一次 `pt.run rtc.read` 显示板子时间。控制口上有命令在跑时这一秒跳过，不排队 | 协议没有请求 id，命令只能一条条走；排在长命令后面的读时间会把人点的命令往后推。RS232 转换器那一句只是提示、不替人选（`web/js/conn.js` 的 `looksLikeRs232`）：只能按转换器的名字认，不同转换器的 VID/PID 可能相同 |
 | 板子时间的日志 | 每秒那条 `OK rtc.read` 归进日志的「板子自述」一类：默认不显示，勾上就回来，导出照留 | 一秒一行会把日志刷掉；时间已显示在控制口下面 |
-| `pt.caps` 的日志 | 面板发的 `pt.caps` 和它的应答（`OK porttool=` / `port=` / `vals=` / `limits=` / `terms=` / `run=` 行）也归「板子自述」：默认不显示，日志里照留、导出照留；人在命令框里敲 `pt.caps` 时自动勾上这一类（`web/js/core.js:87-93`、`:206-210`） | 面板每条命令之后都重读 `pt.caps`（`panel.go:640-648`），不藏会刷掉日志；人自己敲了就是要看 |
+| `pt.caps` 的日志 | 面板发的 `pt.caps` 和它的应答（`OK porttool=` / `port=` / `vals=` / `limits=` / `terms=` / `run=` 行）也归「板子自述」：默认不显示，日志里照留、导出照留；人在命令框里敲 `pt.caps` 时自动勾上这一类（`web/js/core.js:87-93`、`:206-210`） | 面板每条命令之后都重读 `pt.caps`（`panel.go:662-669`），不藏会刷掉日志；人自己敲了就是要看 |
 | 日志整块重绘 | 暂停后继续、清空、改筛选、自动勾上 `pt.caps` 时，最近 4000 行一次拼进一个 DocumentFragment 再挂上，不逐行追加（`web/js/core.js:128-135`） | 逐行追加每行都触发一次排版，4000 行会把页面卡住好几秒 |
 | 板子 USB | 板子 USB 的序列号由芯片 UID 算出（`%08X%04X`，前 8 位是 UID 第 0、2 字之和，后 4 位是第 1 字的高 16 位），面板按这块板的 UID 自动选它自己的口；手选到序列号属于别的板的口拒绝，说出它属于哪块板（UID 末 6 位）；标准机反过来也一样，选到被测板的 USB 口拒绝；没有序列号可比的口照常可选（[决策 163](../../tables/DECISIONS.md)） | 一台电脑接几块板时，同型号的口只有序列号能分开 |
 | 板子 USB、RS485、CAN 转换器 | 只选不接（[决策 168](../../tables/DECISIONS.md)）：RS485、CAN 两行先由面板自动识别（下面「转换器自动识别」），认不出来才手选。下拉一改就走 `/api/link {port, com}` 记进 `porttool_ports.json`，选「不用」走 `/api/unlink` 清掉，都不打开这个口。测试项开始时按选的口打开对端、这一项结束就关掉；命令框里手敲 `pt.start <口>` 时同样打开、`pt.stop` 时关掉，开着时这一行写收了几行、送回几行，出错时圆点灰、原文在悬停提示里（`GET /api/conn` 的 `links`） | 同一个串口不能开两次，只在测试期间占用就不会和测试互相挡（决策 168）；开着不通时原因要找得到（决策 106），放在悬停里满足它（决策 170） |

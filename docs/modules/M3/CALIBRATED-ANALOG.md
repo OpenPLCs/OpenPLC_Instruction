@@ -25,7 +25,7 @@ AO 只有 mA：两路都是电流输出（XTR111），硬件上没有电压输�
 
 写 AO 时码值为 0 关 DAC 输出缓冲、非 0 时开，0 mA 才真到 0（决策 152）；这部分由 `openplc_ao_dac.c` 直接调 HAL，不经 `analogWrite()`。
 
-读 AI 时把 `analogRead()` 分辨率设成 16 位、写 AO 时把 `analogWrite()` 设成 12 位，并保持不改回；同一个 sketch 里再用它们的人要知道这一点。
+读 AI 时把 `analogRead()` 分辨率设成 16 位、每一路第一次写 AO 时把 `analogWrite()` 设成 12 位，并保持不改回；同一个 sketch 里再用它们的人要知道这一点。
 ADC 时钟和采样时间与工装固件一致：时钟源 `CLKP`（HSI 64 MHz）异步 4 分频、采样 387.5 周期，由 `boards.txt` 的 `-DADC_CLOCK_DIV` `-DADC_SAMPLINGTIME` 和变体 `generic_clock.c` 对所有 `analogRead()` 生效（决策 124）。`analogRead()` / `analogWrite()` 仍是原始值。
 
 ## 测试

@@ -81,8 +81,9 @@
 
 ## 怎么跑测试
 
-[HOW-TO-RUN-TESTS.md](HOW-TO-RUN-TESTS.md) —— 跨用例的操作说明：怎么让设备停在 bootloader、
-手上没板子时怎么用模拟板联调、各静态检查怎么跑。**单条用例的判据和跑法在各模块文档的测试表里**，这份只装跨用例的部分。
+[HOW-TO-RUN-TESTS.md](HOW-TO-RUN-TESTS.md) —— 跨用例的操作说明：各仓的自检入口、怎么让设备停在 bootloader、各静态检查怎么跑。
+
+[HOW-TO-RUN-PORTTOOL-TESTS.md](HOW-TO-RUN-PORTTOOL-TESTS.md) —— PortTool 仓的测试，以及手上没板子时怎么用模拟板联调。**单条用例的判据和跑法在各模块文档的测试表里**，这份只装跨用例的部分。
 
 [PORTTOOL-DEMO-ON-BOARD.md](PORTTOOL-DEMO-ON-BOARD.md) —— 工装软件真板子演示那天的操作单：动手准备、三层演示、出问题时退回模拟板。
 

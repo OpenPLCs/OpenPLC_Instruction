@@ -18,8 +18,8 @@
 
 | 真代码（只读编进来） | 替身自己写的 |
 |---|---|
-| `$BOOT/IAPServer`：`IAP_server.c`、`tcp_server.c`、`udp_server.c`、`bootloader_state.c`、`bkp_stash.c`、`owner_slot.c`、`iap_auth.c`、`iap_cert.c`、`iap_keyderive.c`、`fw_verify.c`、`sha256.c`、`net_rand.c`、`uecc/uECC.c`、`IAP_boot_handoff.c`、`boot_log.c` | lwIP raw API（`udp_*`、`tcp_*`、`pbuf_*`）桥到 PC 的 socket |
-| 板卡包 `OpenPLC_IAP/src/udp_server.c`：app 在跑时的重启挑战与重启；它读开机缓存，所以 `cores/arduino/stm32/boot_log.c` 一起编 | HAL 桩（flash 擦写、CRC、RNG、复位等）；CRC 是标准 CRC-32 IEEE 再取反，和 `$BOOT/Core/Src/crc.c` 的配置一致 |
+| `$BOOT/IAPServer`：`IAP_server.c`、`tcp_server.c`、`udp_server.c`、`bootloader_state.c`、`bkp_stash.c`、`owner_slot.c`、`iap_auth.c`、`iap_cert.c`、`iap_keyderive.c`、`fw_verify.c`、`sha256.c`、`net_rand.c`、`uecc/uECC.c`、`IAP_boot_handoff.c`、`boot_log.c`；`$BOOT/Core/Src/usbd_cdc_flash.c`（flash 擦写） | lwIP raw API（`udp_*`、`tcp_*`、`pbuf_*`）桥到 PC 的 socket |
+| 板卡包 `OpenPLC_IAP/src/udp_server.c`：app 在跑时的重启挑战与重启；连同它要的 `OpenPLC_IAP/src` 其余几份（`iap_auth.c`、`iap_cert.c`、`iap_keyderive.c`、`owner_root_ro.c`、`fw_meta_ro.c`、`fw_verify.c`、`sha256.c`、`uecc/uECC.c`）和 `cores/arduino/stm32/` 的 `IAP_boot_handoff.c`、`boot_log.c` 一起编 | HAL 桩（flash 擦写、CRC、RNG、复位等）；CRC 是标准 CRC-32 IEEE 再取反，和 `$BOOT/Core/Src/crc.c` 的配置一致 |
 | | flash、SDRAM、SRAM4（交接记录和开机缓存）、备份 SRAM 放在源码里的原地址（`0x08000000`、`0xC0000000`、`0x38000000`、`0x38800000`），由 PC 在固定地址上分配；整个程序链接在 4 GiB 以下，因为固件是 32 位的，真 flash 驱动把地址当 `uint32_t` 传；flash 内容存成文件，模拟复位后还在 |
 | | 真代码的 `printf` 直接上 stdout，不进开机缓存；开机缓存只照 `main.c` 的顺序初始化，跳 app 前的刷新是空函数 |
 | | 角色切换：没有有效 app 时跑 bootloader 那一半；收完镜像、模拟复位后，镜像有效就切到 app 那一半 |

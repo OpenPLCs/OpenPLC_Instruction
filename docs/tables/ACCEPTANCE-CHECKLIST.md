@@ -31,7 +31,7 @@
 
 CHK-A4 的上限是整个扇区 0，因为根区 2026-09-30 起在扇区 15（决策 72）；超了链接器会报 `region FLASH overflowed`。
 
-⚠️ **CHK-A6 里 `all` 不含要人动手的用例**（T1-17、T2-01、T2-05），它们会被点名跳过而不是静默略过。要跑得单独按 id 跑，见 [HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)。
+⚠️ **CHK-A6 里 `all` 不含要人动手的用例**（`TestCase` 里只有 T1-17），它会被点名跳过而不是静默略过。要跑得单独按 id 跑，见 [HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)。
 
 ---
 

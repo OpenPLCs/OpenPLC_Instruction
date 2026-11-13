@@ -158,7 +158,7 @@ Tool     ToolFileName      = MK-TMYYMK-01(ADB)_1.3…
 
 | 字段 | 说明 |
 |---|---|
-| `field` | 帧里的字段名，如 `v`、`ch1`、`miss`、`vdda`、`errors`。另有两个合成字段：`_text`（整行原文，给 `contains` 用）、`_exit`（暂未使用） |
+| `field` | 帧里的字段名，如 `v`、`ch1`、`miss`、`vdda`、`errors`。另有两个合成字段：`_text`（整行原文，给 `contains` 用）、`_exit`（`Tool` 步骤的退出码） |
 | `op` | `range`（`min`/`max`）· `eq` · `ne` · `contains` · `count_zero`（必须为 0，用于 `miss` / `junk` / `errors`） |
 | `min` / `max` / `value` | 按 `op` 取用 |
 | `unit` | 只用于报告显示，不参与判定 |
@@ -186,6 +186,7 @@ Tool     ToolFileName      = MK-TMYYMK-01(ADB)_1.3…
 |---|---|---|
 | `_changes_<字段>` | 标准机上的会话（`on: "ref"`，见下一节） | 判的那段时间里，这个字段在相邻两帧之间变了几次。DO 方波数翻转次数就判它，如 `_changes_ch3` |
 | `value` | `UserReading` | 人填的数，原样进报告 |
+| `sn` | `ReadSN` | 读到的 SN |
 
 ⚠️ **字段不存在算失败，不算跳过。** 方案里写了固件已经不报的字段，必须当场看见 —— 静默跳过的限值就是没测过的板子。
 
@@ -221,9 +222,9 @@ Tool     ToolFileName      = MK-TMYYMK-01(ADB)_1.3…
 | `baud` | 串口对端的波特率，0 用默认 |
 | `can` | 上位机的 CANable 2.0（SLCAN，按 USB id `16D0:117E` 找），和标准机 `mode=echo` 一样回：同一标识符、同一长度、负载加一。位速率取这一步的 `params.baud`，没写用 500000 |
 
-**对端什么时候算起来**（`$PORTTOOL/src/ptseq/peer.go:68-71`、`ptseq.go:453-470`）：每来一帧试一次打开对端，连上后这一步的帧数从 0 重新计；从这一步开始算 10 s 内对端还没起来，帧数够了也接着等（`peerGrace`）。宽限按时间不按帧数，帧停了的会话也能出结论而不是超时；10 s 盖住板子 DHCP 拿地址的 5–6 s。
+**对端什么时候算起来**（`$PORTTOOL/src/ptseq/peer.go:71-74` 的 `peerGrace`、`ptseq.go:470` 起）：每来一帧试一次打开对端，连上后这一步的帧数从 0 重新计；从这一步开始算 10 s 内对端还没起来，帧数够了也接着等（`peerGrace`）。宽限按时间不按帧数，帧停了的会话也能出结论而不是超时；10 s 盖住板子 DHCP 拿地址的 5–6 s。
 
-⚠️ **TCP 对端「已连上」不等于板子在答**（`peer.go:158-159`、`:189-198`）：TUN 模式的 VPN 会接受到任意地址的 TCP connect，所以对端显示连上了却收到 0 字节。这种情况报告里写明「没东西回来，多半是 VPN 或代理占了默认路由」，不当成板子的 `conn=0` 故障。
+⚠️ **TCP 对端「已连上」不等于板子在答**（`peer.go:189-198`、`:226-230`）：TUN 模式的 VPN 会接受到任意地址的 TCP connect，所以对端显示连上了却收到 0 字节。这种情况报告里写明「没东西回来，多半是 VPN 或代理占了默认路由」，不当成板子的 `conn=0` 故障。
 
 ---
 
@@ -239,7 +240,7 @@ Tool     ToolFileName      = MK-TMYYMK-01(ADB)_1.3…
 
 **没有 `Init` / `Deinit` 类型**：那两个在参考架构里是「打开设备 / 关闭设备」，我们的等价物是「连串口 / 断串口」，由执行器自己管，不占步骤位。
 
-### 四个非设备类型（2026-09-07 补齐）
+### 五个非设备类型（2026-09-07 补齐）
 
 | 类型 | 干什么 | 专有参数 |
 |---|---|---|
@@ -298,7 +299,7 @@ Tool     ToolFileName      = MK-TMYYMK-01(ADB)_1.3…
 ## 六、方案只在命令行跑
 
 - 面板不再编辑和运行方案（[决策 102](../../tables/DECISIONS.md)）；`porttool run <方案> --port COMx` 照旧，`UserConfirm` 在 stdin 上问 `pass? [y/N]`，`--yes` 全部当通过
-- `--ref COMy` 接标准机（两头都写 `sim` 时是两块模拟板，标准机 DO1–8 接被测板 DI1–8、标准机 DI1–8 接被测板 DO1–8 交叉接好）；`UserReading` 在 stdin 上要一个数，不是数就再问，`--yes` 不替人填数
+- `--ref COMy` 接标准机（两头都写 `sim` 时是两块模拟板，按「标准机设置」的默认接法接好：标准机 DO1–8 接被测板 DI1–8，被测板 DO1–6 经继电器 RY1–RY6、DO7、DO8 直连到标准机 DI1–8，见 [PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) C.3.7「两块模拟板」）；`UserReading` 在 stdin 上要一个数，不是数就再问，`--yes` 不替人填数
 - **不合固件的方案拒跑**（决策 77）：`CheckAgainstCaps` 报出问题就不跑，列出哪一步、为什么
 
 ## 七、还没定的

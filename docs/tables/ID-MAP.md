@@ -29,7 +29,7 @@
 | `CHK-A1`–`CHK-A7` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 7 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
 | `CHK-B1`–`CHK-B9` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 9 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
 | `CHK-C1`–`CHK-C7` | 验收单的一项（A 改动后自检 / B 发版 / C 单板出厂） | 7 | [ACCEPTANCE-CHECKLIST.md](ACCEPTANCE-CHECKLIST.md) |
-| 第 1–39 41–51 53–181 条 | 决议（定了就不重开，除非出现它写明的重开条件） | 179 | [DECISIONS.md](DECISIONS.md) |
+| 第 1–39 41–51 53–182 条 | 决议（定了就不重开，除非出现它写明的重开条件） | 180 | [DECISIONS.md](DECISIONS.md) |
 
 <!-- END generated -->
 
@@ -88,7 +88,7 @@
 | **`T3-03`** | ① **用例**：`RS232` 抗 `Serial4.begin()`<br>② **设计模块**：串口冲突 | **两者是同一个主题**，不会导致误解 |
 | **`D1`** | **硬件网络名**：SDRAM 的第 1 根数据线（`PD15`）。原来的需求号和 `ISS-D1` 都已不存在 | ⚠️ `D0`–`D15` 整套都是网络名 |
 
-`CHK-B1`/`CHK-B2`/`CHK-B3` 和 `P1`/`P2`/`P3` **是同一批检查的两个名字**（`TEST-CASES.md` 明说了"前三个对应发版检查单的 B1/B2/B3"）。**没有合并** —— 合并要单独定过再动。
+`CHK-B1`/`CHK-B2`/`CHK-B3` 和 `P1`/`P2`/`P3` **是同一批检查的两个名字**（[HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)「静态检查一览」写明了对应关系）。**没有合并** —— 合并要单独定过再动。
 
 ---
 

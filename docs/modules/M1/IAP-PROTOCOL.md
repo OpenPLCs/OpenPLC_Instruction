@@ -1,6 +1,6 @@
 # IAP 协议 · bootloader 和 app 在线上认哪些命令
 
-> `takeown` / `getpubkey` / `flashboot` 三行按[决策 72](../../tables/DECISIONS.md)；没有根时拒绝 `flashboot` 2026-10-08 上板通过（`T1-32`），IDE 上传时第一次认领上板待验。
+> `takeown` / `getpubkey` / `flashboot` 三行按[决策 72](../../tables/DECISIONS.md)；没有根时拒绝 `flashboot` 2026-10-08 上板通过（`T1-32`），IDE 上传时第一次认领 2026-11-11 上板过（出厂板经 `arduino-cli upload -l network` 认领）。
 
 **这份是命令一览。** 每条命令的格式、要不要认证、会回什么。
 为什么是这个形状，各自的专门文档里写着，这里只给指针。

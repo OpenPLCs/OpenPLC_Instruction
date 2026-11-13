@@ -27,7 +27,7 @@
 | 配置项 | 说明 | 用法 |
 |---|---|---|
 | **控制串口** | 板子的 RS232 控制口，端子 **C05 / C06 / C02**。**所有命令和所有数据都走这一根线** | 面板左边列出系统里的串口，像是 RS232 适配器的会标出来。上次用过的会记住，但**不自动连** —— 打开串口是副作用。模拟板不记（`$PORTTOOL/src/portmap/portmap.go:73-79`）：否则对模拟板跑一次，就把台子上记下的控制口换成了 `sim` |
-| **波特率** | **固定 115200 8N1**，不可改 | 不是配置项，写在这里是因为分类 C 的带宽守卫按它算 |
+| **波特率** | **115200 8N1**；只有测 `rs232` 时临时切到选定波特率（[PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) B.7） | 不是配置项，写在这里是因为分类 F 的带宽守卫按它算：配置里 `rs232` 设了别的波特率时按较低的那个算 |
 
 ## B · 测试范围
 
@@ -49,18 +49,19 @@
 
 | 端口 | 参数 | 说明 | 用法 |
 |---|---|---|---|
-| `dout` | `ch` `mode` `res` `duty` `freq` `period` | 八路 24 V 高边输出，**每路独立占空比和频率**，位数八路共用 | `duty=0` 是关、`2^res−1`（默认 255）是开；`mode=blink` 配合 DI 回环用 |
+| `dout` | `ch` `mode` `res` `duty` `freq` `period` `cycles` | 八路 24 V 高边输出，**每路独立占空比和频率**，位数八路共用 | `duty=0` 是关、`2^res−1`（默认 255）是开；`mode=blink` 配合 DI 回环用；`mode=quad` + `cycles` 是标准机给被测板 DI 送正交脉冲 |
 | `din` | `ch` `mode` `period` | 八路数字输入 | `mode=quad` 是编码器模式 |
 | `relay` | `ch` `mode` `on` `close` `open` `count` | 六路继电器 | ⚠️ **吸合 / 断开保持下限 1000 ms**，不是别处的 50（B.2，决策 123） |
 | `ain` | `ch` `period` | 两路模拟输入 | 焊成哪一档以按板子登记的档位为准，不拿读数反推；没焊是坏板，校准拒存（决策 106，[PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) C.3.2） |
 | `aout` | `ch` `mv` `period` | 两路模拟输出，**电流输出** | 面板上按 mA 填，用板上 k、b 换算成 `mv`（C.3.2）；0–20 / 4–20 mA 按登记的档位 |
 | `temp` | `ch` `period` | 板载两路温度（PA0 短路保护 / PA3 Fets） | 单位是十分之一摄氏度 |
-| `can` | `baud` `mode` `period` | `normal` / `listen` / `loopback` / `extloop` | `extloop` 不需要第二个节点，但**不过收发器和隔离器**：外部回环模式下控制器在内部把发送接回接收、不看 RX 脚，只证明外设、位时序和 TX 脚在出波形（RM0433 FDCAN 测试模式；`$BOOT/TestCase/porttool/porttool_can.c` 头注释的 `extloop` 一条）。要证明 U8 / U7 / 接线得用 `normal` 加一个对端节点 |
+| `can` | `baud` `mode` `period` | `normal` / `listen` / `loopback` / `extloop` / `echo` / `bus`（`bus` 给 CAN 分析窗口，[PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) B.10） | `extloop` 不需要第二个节点，但**不过收发器和隔离器**：外部回环模式下控制器在内部把发送接回接收、不看 RX 脚，只证明外设、位时序和 TX 脚在出波形（RM0433 FDCAN 测试模式；`$BOOT/TestCase/porttool/porttool_can.c` 头注释的 `extloop` 一条）。要证明 U8 / U7 / 接线得用 `normal` 加一个对端节点 |
 | `rs485` | `baud` `period` | A/B 对上发号收号 | ⚠️ **必须有对端**，见互斥 6 |
-| `knx` | `mode` `ga` `src` `val` `crc` `period` | 每种 `mode` 是一个测试项；`frames` 发真报文 | `ga` / `src` / `val` 只在「收发整帧」项上改；`ga=none` 停发；默认发到 **31/7/255** |
-| `rs232` | `period` | **它就是控制口本身** | 见互斥 1 |
-| `eth` | `mode` `period` | TCP server：`echo` / `sink` / `source` / `mirror`（满速率回送，PC 端一次量出速率、丢包、延时，[PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) B.9） | 板子 IP 是 DHCP 来的，唯一可信出处是帧里的 `ip=` |
+| `knx` | `mode` `ga` `src` `val` `period` | 每种 `mode` 是一个测试项；`frames` 发真报文 | `ga` / `src` / `val` 只在「收发整帧」项上改；`ga=none` 停发；默认发到 **31/7/255** |
+| `rs232` | `baud` `period` | **它就是控制口本身**；`baud` 切控制口波特率（B.7） | 见互斥 1 |
+| `eth` | `mode` `port` `ip` `period` | TCP server：`echo` / `sink` / `source` / `mirror` / `file`（`file` 是 SD 文件传递，B.11）（满速率回送，PC 端一次量出速率、丢包、延时，[PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) B.9） | 板子 IP 是 DHCP 来的，唯一可信出处是帧里的 `ip=` |
 | `usb` | `mode` `period` | CDC，板子是 **Device**；`mode` 同 `eth`，另有 `info` | PC 才是主机 |
+| `sdram` | `wait` `period` | 保持测试：随机地址写、放 `wait` 毫秒、读回核对 | `wait` 下限 1000 ms，小了固件拒收（[PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) C.3.6「SDRAM 长时间读写」） |
 | `sd` | `period` | 会话只盯「卡插没插」；读写在 `pt.run` 里 | 判据是 `fs ne none` |
 
 ## E · 判据（只读）
@@ -98,7 +99,7 @@
 |---|---|---|
 | **指示灯确认** | PE2 无回读，只能人看闪没闪 | 卡片外的问人框，人选是 / 否 |
 | **万用表读数框** | AOUT 电流、供电电压这类 | 人读了填进去，进报告。⚠️ 输入框**刻意放在每帧重建的区域之外**，否则打字打一半会被抹掉 |
-| **安规判定** | 工站 9 | 弹框人选 |
+| **安规判定** | 工装完整测试的安规一步（第 5 步） | 安规卡片上人填 SN、问卷和结论（[PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) C.3.4） |
 
 ## I · 校准
 
@@ -108,7 +109,7 @@
 |---|---|---|
 | **采点** | 3–6 点（决策 117） | 点数和点在研发测试的校准卡片上填（决策 90） |
 | **拟合形状** | 最小二乘直线（增益 + 偏置，`$PORTTOOL/src/ptcal/ptcal.go:9-11`）：能把增益误差和偏移误差分开的最小模型；残差照报，转换器不线性时显在残差里，不藏进增益 | ⚠️ **形状要等真实数据**才定得了 |
-| **系数落盘** | 存进扇区 15 最前 8 KiB（决策 61）：工装按 UID 存档并生成镜像，工站 10 写入 | 格式见 [PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) C.3.2 |
+| **系数落盘** | 存进扇区 15 最前 8 KiB（决策 61）：工装按 UID 存档并生成镜像，研发测试校准卡片「烧进板子」经 `pt.calw` 写入（[决策 142](../../tables/DECISIONS.md)） | 格式见 [PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) C.3.2 |
 
 ---
 
@@ -118,10 +119,10 @@
 
 | # | 关系 | 表现 | 出处 |
 |---|---|---|---|
-| 1 | **`rs232` 会话吃控制口带宽** | 它是 `loop=self`，测试流量和所有端口的日志是同一根线；每帧走三趟（90+16+20 字节），别的端口只算 90 | `$BOOT/TestCase/porttool/porttool_rs232.c:117`、`$PORTTOOL/src/ptpanel/web/js/stagecfg.js` 的 `bandwidthOf` |
+| 1 | **`rs232` 会话吃控制口带宽** | 它是 `loop=self`，测试流量和所有端口的日志是同一根线；`loop=ctrl` / `loop=self` 的会话每帧算三趟（帧 90 + `pt.echo` 16 + `OK` 20 字节），`loop=link` 的只算帧 90；`rs232` 切到更低波特率时整条线按那个波特率算 | `$PORTTOOL/src/ptpanel/web/js/stagecfg.js` 的 `bandwidthOf` |
 | 2 | **总带宽上限** | 配置里勾的会话合计超 11520 B/s 的 80 % 就撤回那次勾选。**线一堵 `printf` 阻塞，所有端口采样周期一起失准且不报错** | `stagecfg.js` 的 `bandwidthOf` |
-| 3 | **`pt.echo` 对 `loop=link` 端口被拒** | `can` / `rs485` 的计数器必须走被测链路。在控制口上答它会让计数器在链路已死时照涨 | `porttool.c:423`、`DECISIONS.md` 9 |
-| 4 | **`ain` / `aout` / `temp` 都要 VREFBUF** | 起不来就**拒绝启动**，不是给个坏数 | `porttool_ain.c:89`、`porttool_aout.c:136`、`porttool_temp.c:82` |
+| 3 | **`pt.echo` 对 `loop=link` 端口被拒** | `can` / `rs485` 的计数器必须走被测链路。在控制口上答它会让计数器在链路已死时照涨 | `porttool.c:519`、`DECISIONS.md` 9 |
+| 4 | **`ain` / `aout` / `temp` 都要 VREFBUF** | 起不来就**拒绝启动**，不是给个坏数 | `porttool_ain.c:80`、`porttool_aout.c:123`、`porttool_temp.c:75` |
 | 5 | **`relay` 吸合 / 断开保持下限 1000 ms** | 其余端口是 50。填小了面板拦、固件也拒绝 | `porttool_relay.c` 的 `RELAY_PERIOD_MIN_MS` |
 | 6 | **`rs485` 必须有对端** | 半双工且是一条网：`PD4` 同时驱动 /RE 和 DE，**发送时板子听不到自己**。没有对端计数器永远闭合不了 —— 那是接线不对，不是会话有问题 | `porttool_rs485.c` 文件头 |
 | 7 | **`din` 的激励不由面板给** | `din` 只读不驱动，`dout` 只输出。判据 `v eq 0xFF` 要求的是**这一轮的激励状态**，八路怎么被拉高是工位的事 —— 工装板、别的夹具、或者一根线从 DO 接过来都行。**面板不替产线定夹具** | [DECISIONS.md 43](../../tables/DECISIONS.md) |

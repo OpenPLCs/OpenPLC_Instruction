@@ -1,6 +1,6 @@
 # M2 · 归属与信任
 
-> 按[决策 72](../tables/DECISIONS.md)（出厂无根、第一次上传自动认领）实施（`$BOOT` `fe653a7`），2026-10-08 上板通过；还差 IDE 上传对真板子的未认领那一次。
+> 按[决策 72](../tables/DECISIONS.md)（出厂无根、第一次上传自动认领）实施，bootloader 0.2.0 已包含，2026-10-08 上板通过；还差 IDE 上传对真板子的未认领那一次。
 
 **外面的人能让这块板做什么**：把它绑到自己的钥匙上，从此只有自己能往里装固件；
 把这个权力交给别人；丢了钥匙时把板子收回来重新开始 —— **全程不需要 ST-Link，也不重编、不重写 bootloader**。
@@ -479,7 +479,7 @@ flowchart TD
 | `T2-18` | `R2-04` | 坏签名的撤销**记不进去** | 板子回 `revoke refused: signature does not verify against the current owner`，且 generation 不变、`owner_slot_is_revoked` 仍答否 | 同上 ⁴（`--bad-signature`） | 真板子 | ✅ |
 | `T2-19` | `R2-04` | **连续作废两个不同的叶，两个都生效** | 启动日志 `2 leaf(s) revoked`；两个叶各自上传都被拒；**第三张未被作废的叶照常传起** | `python tools/run_revoke_leaf.py --second-leaf` ⁷ | 真板子；替身（`python host/fakeboard/run_lifecycle.py --only T2-19`）跑真 `owner_slot.c` + `iap_cert.c` | ✅ |
 | `T2-20` | `R2-04` | 重复作废同一个叶是**幂等**的 | 第二次回 `OK already revoked`，且 `N/96 revoke slot(s) free` **一个槽都没少** | 同上 ⁷ | 真板子；替身（`python host/fakeboard/run_lifecycle.py --only T2-20`）跑真 `owner_slot.c` + `iap_cert.c` | ✅ |
-| `T2-21` | `R2-04` | **当前生效的根撤不掉自己**（代码里叫 `R4`） | 喂一块假 owner 记录区、跑**真实**的 core 侧 `owner_root_ro.c`：第一条 `'R'` 记录点名当任根 → **根没被撤**；**紧跟其后的两条照常生效**（R4 跳过那一条，不中断整段扫描）；没被点名的叶不算被撤 ⁸ | `$CORE_REPO/tests`：`ctest --preset local` | 主机侧（要 gcc/clang） | ✅ |
+| `T2-21` | `R2-04` | **当前生效的根撤不掉自己**（代码里叫 `R4`） | 喂一块假 owner 记录区、跑**真实**的 core 侧 `owner_root_ro.c`：第一条 `'R'` 记录点名当任根 → **根没被撤**；**紧跟其后的两条照常生效**（R4 跳过那一条，不中断整段扫描）；没被点名的叶不算被撤 ⁸ | `$CORE_REPO` 里 `python tests/selfcheck.py`（CTest 的 `T2-21`） | 主机侧（要 gcc/clang） | ✅ |
 | `T2-22` | `R2-04` | **`'R'` 段快满时启动日志要提醒** | 剩 9 条时**不出现**任何提醒；写到剩 8 条时出现 `Only 8 revocation slot(s) left`，且文案里点名 `setowner --wipe`（只有它腾空名额）¹¹ | `$BOOT/tests`：`ctest --preset local -R T2-22-T2-23` | 主机侧（要 gcc/clang） | ✅ |
 | `T2-23` | `R2-04` | **第 97 条作废被拒，且一个字节没写** | 96 条全部写入且逐条读回都是「已撤销」；第 97 条 `owner_slot_revoke()` 返回 false，**假 flash 的写入字节计数不变**，`'R'` 段 3072 字节逐字节和拒绝前相同，当任根也没变 ¹¹ | 同上 ¹¹ | 主机侧（要 gcc/clang） | ✅ |
 | `T2-26` | `R2-04` | **板子报得出「我这个 app 的签名者被撤了」** —— 第 60 条让它照常启动之后，这是现场唯一的信号 | 三支都判，前两支**同一段代码判**：撤销装机固件那张叶 → 答 `REVOKED`；`T2-17` 装上没被撤的叶签的镜像 → 答不是 `REVOKED`；板上无可运行固件 → 答「没有」 ¹⁶ | 随 `python tools/run_revoke_leaf.py` 一起跑；第三支手工 ¹⁶ | 真板子；替身（`python host/fakeboard/run_protocol.py --only T2-26`）证明 `getapprevoked` 两支（被撤 / 仍可信），真 lwIP / PHY 仍要真板子 | ✅ |
@@ -528,7 +528,7 @@ flowchart TD
 （主机台子直接编真实的 `owner_slot.c`）。（`T1-16` 的 owner 槽是**桩**，`stubs/owner_slot_stub.c`。）
 
 ⁹ **`T2-01` 那把新生成的私钥，以及 `T2-03` 换给新主人的那把，都是当时唯一能签固件的东西**，
-所以落在 `$TOOL/Output/owner-keys/<时间戳>/`（`Output/` 不进 git），不在系统临时目录。
+所以落在 `$TEST/Output/owner-keys/<时间戳>/`（`Output/` 不进 git），不在系统临时目录。
 判据查文件在不在，**不查脚本打印了什么** —— 工具不能自己证明自己。
 
 ¹¹ **`T2-22`–`T2-24` 在主机上跑**：`T2-22`/`T2-23` 要把 96 个作废名额用满，`T2-24` 判的是「擦之前那一步判断对不对」。

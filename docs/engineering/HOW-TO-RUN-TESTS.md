@@ -9,8 +9,8 @@
 | `$BOOT` | bootloader 的主机 C 测试（T1-16、T1-33、T1-36、T2-22–T2-34 中归 bootloader 的）、T4-06（工装 DAC 缓冲）、P16、P17 | `cd tests && cmake --preset local && cmake --build --preset local && ctest --preset local` |
 | `$CORE_REPO` | P3、P4、P5、P15、P19、T2-21、T3-07、T3-08、T3-09、T3-10、T3-12、T3-22、T3-24、T3-25 | `python tests/selfcheck.py`（`--full` 加上约 45 分钟的 P5） |
 | `$TOOL` | T1-15、T1-35、T1-19 / T1-20 | `python tests/selfcheck.py` |
-| `$PORTTOOL` | T4-01 到 T4-05 | `TestCase/test.sh all`（`quick` 跳过浏览器那步） |
-| `$TEST` | 契约（P1、P2、P11、P20、T1-18）、整机（`TestCase.exe`、上板脚本、T1-34、T1-37、T1-27、T3-05） | `python tools/selfcheck.py`（`--quick` 跳过慢的；上板脚本不进自检） |
+| `$PORTTOOL` | T4-01、T4-02、T4-04、T4-05（T4-03 在 WSL 里另跑，见 [HOW-TO-RUN-PORTTOOL-TESTS.md](HOW-TO-RUN-PORTTOOL-TESTS.md)） | `TestCase/test.sh all`（`quick` 跳过浏览器那步） |
+| `$TEST` | 契约（P1、P2、P11、P20）、bootloader 替身上的整机用例（T1-18 等，见下文「主机侧测试」）、Renode（T1-37、T1-27、T3-05、T3-11）、`TestCase.exe`、上板脚本、T1-34 | `python tools/selfcheck.py`（`--quick` 跳过慢的；上板脚本不进自检） |
 | `$ETSPROD` | T3-23 | `python -m unittest discover tests` |
 | `$PROD` | 文档检查 P7、P8、P9、P12、P13、P14、P18 | `python tools/check_docs.py` |
 
@@ -28,7 +28,7 @@
 
 | 组 | 测什么 | 为什么只能这么测 |
 |---|---|---|
-| tables | `SETTINGS` / `PREREQS` / `EXAMPLES` 的列是否齐 | 三张手写表，最常见的编辑错误是加了一行漏一列；不测的话报错发生在你不在场的那台机器上 |
+| tables | `SETTINGS` / `WHAT_IT_IS` / `EXAMPLES` 三张表是否对得上 | 三张手写表，最常见的编辑错误是加了一行漏一列；不测的话报错发生在你不在场的那台机器上 |
 | ports | `detect_rs232_ports()` 的 **macOS 分支** | 本项目没有 mac，所以文件系统是假的，只测排序与去重逻辑 |
 | ask_for | 引号剥离、`~` 展开、安装根目录校验 | 提问按定义在自动化里跑不到（只在"stdin 是终端且环境无自动化标记"时发生），只能替换 `input()` |
 
@@ -61,7 +61,7 @@ TestCase <case-id|all> --ip=<addr> [--port=56865] [--bin=<file.bin>] [--iaptool=
 
 - `--ip` 必填。设备 IP 从 USB 口的 `[sys][NET]` 行读（见下面「测试从哪读板子的输出」），或用 `IAPTool ether` 的广播发现看。
 - `--bin` T1-09 / T1-11 / T1-12 需要；`--key` T1-11 / T1-12 需要，是板子当前信任的那把私钥。
-- `--iaptool` 默认找 `Output/windows/IAPTool.exe`。
+- `--iaptool` 默认找旁边仓的 `../OpenPLC_IAPTool/Output/<GOOS>/IAPTool`（Windows 上带 `.exe`）。
 - 退出码：全过 0，有失败 1，参数错 2。
 
 ## 用例
@@ -170,7 +170,7 @@ T1-07–T1-10 和 T1-11 都要求设备处于 bootloader 且以太网已起。�
 | 目录 | 怎么跑 | 覆盖什么 |
 |---|---|---|
 | `$TOOL/tests/iapcert/` | 在 `$TOOL` 下 `go test ./tests/...` | **T1-15** 证书布局（叶公钥 64 B + 根签名 64 B）与根签名覆盖的字节范围（换个范围就验错东西）；委托证书；拒绝格式不对的叶公钥；挑战签名覆盖 `sha256(nonce\|\|msg)` 且顺序不可换 |
-| `$TOOL` 根目录、`internal/`、`iapproto/`、`netiface/` | 在 `$TOOL` 下 `go test . ./internal/... ./iapproto/... ./netiface/...` | **T1-35** IAPTool 自己的单元测试：密钥查找顺序（`--key` → `local_config.json` → 用户配置目录 → exe 旁边）、串口层、`internal/iapproto` 的协议常量与绑物理网卡拨号、USB 上传结论判读、`-v` 开关。进 selfcheck |
+| `$TOOL` 根目录、`internal/`、`iapproto/`、`netiface/` | 在 `$TOOL` 下 `go test . ./internal/... ./iapproto/... ./netiface/...` | **T1-35** IAPTool 自己的单元测试：密钥查找顺序（`--key` → `local_config.json` → 用户配置目录 → exe 旁边）、串口层、`iapproto/` 的协议常量与绑物理网卡拨号、`netiface/` 的物理网卡判定、USB 上传结论判读、`-v` 开关。进 selfcheck |
 | `$BOOT/tests/bootloader_unit/` | `$BOOT/tests` 下 `ctest --preset local -R T1-16`，需要 gcc/clang 和 CMake | 用 stub 在主机上编译**真实的** `sha256.c` / `iap_cert.c` / `fw_verify.c` / `iap_auth.c` 并跑断言。金标证书由出货工具生成，所以过了就等于 C 和 Go 对同一套线格式达成一致。细节见 `$BOOT/tests/bootloader_unit/HOST-C-TESTS.md`（贴着代码放） |
 | `$CORE_REPO/tests/owner_revoke/` | `$CORE_REPO/tests` 下 `ctest --preset local`，需要 gcc/clang 和 CMake | **T2-21** 当前生效的根撤不掉自己（`R4`）。喂一块 RAM 里的假 owner 记录区（按 `owner_slot.h` 的字节布局手搓），在主机上编译并跑**真实的** `owner_root_ro.c`。判据见 [M2 归属与信任](../modules/M2-ownership.md) 的「测试怎么跑」节 |
 | `$BOOT/tests/owner_capacity/` | `$BOOT/tests` 下 `ctest --preset local -R "T2-2|T2-3|T1-33"`，需要 gcc/clang 和 CMake | owner 区容量、压缩、`--wipe`、自撤、出厂无根、恢复出厂、连续 40 次换主（T2-22–T2-33、T1-33、T2-27）。判据见 [M2 归属与信任](../modules/M2-ownership.md) |
@@ -256,7 +256,7 @@ python tools/check_mirror_sync.py        # 在 $TEST 下
 python tests/check_core_sync.py          # 在 $CORE_REPO 下
 ```
 
-比对 Arduino IDE **真正加载**的那份（`$CORE_LIVE`）和板卡包的 git 版（`$CORE_REPO`）。改动在 `$CORE_LIVE` 里做，改过之后编译通过就同步进仓库。六类刻意排除在比对之外：IDE 自己的安装元数据、Go 构建产物、编辑器备份、AI 助手的本地配置目录、`.vscode/`。**CRLF 与 LF 视为相同**：从网上装的包是 LF，仓库在 `core.autocrlf=true` 下检出是 CRLF，只差换行符不算差异。对应 **CHK-B3**。退出码：0 一致，1 有差异，2 仓库路径不对。
+比对 Arduino IDE **真正加载**的那份（`$CORE_LIVE`）和板卡包的 git 版（`$CORE_REPO`）。改动在 `$CORE_LIVE` 里做，改过之后编译通过就同步进仓库。五类刻意排除在比对之外：IDE 自己的安装元数据、Go 构建产物（`tools/discovery/bin/`）、编辑器备份、`.vscode/`、只在仓库里不进安装包的 `.gitignore` / `.gitattributes` / `tests/`。**CRLF 与 LF 视为相同**：从网上装的包是 LF，仓库在 `core.autocrlf=true` 下检出是 CRLF，只差换行符不算差异。对应 **CHK-B3**。退出码：0 一致，1 有差异，2 仓库路径不对。
 
 ### P7 · 总表和用例名单不得漂
 
@@ -264,7 +264,7 @@ python tests/check_core_sync.py          # 在 $CORE_REPO 下
 python tools/check_status_sync.py        # 在 $PROD 下；加 --list 只打印解析结果
 ```
 
-`$PROD/docs/tables/STATUS.md` 和 `TEST-CASES.md` 里的用例编号必须是同一个集合。抓三类漏洞：STATUS.md 拿某条用例当证据、但 TEST-CASES.md 没定义它（需求指着一条谁都跑不了的用例）；TEST-CASES.md 定义了某条用例、但没有需求在引用它（一条跑出来的结果没人记录，烂了也没人发现）；某条用例引用的需求号 STATUS.md 里不存在。退出码：0 两边一致，1 有漂移，2 缺文件。
+需求表（`$PROD/docs/modules/` 下的模块文档和 `docs/engineering/README.md`）引用的用例，和用例表（同几份模块文档、`ACCEPTANCE-CHECKLIST.md`、本文件）定义的用例必须对得上。抓四类漏洞：需求拿某条用例当证据、但没有用例表定义它；用例表定义了某条用例、但没有需求在引用它；某条用例引用的需求号没有需求表定义；`$TOOL`、`$TEST` 两个 `selfcheck.py` 的 `CATALOG` 里有一步没有文档定义。退出码：0 一致，1 有漂移，2 缺文件。
 
 ### P8 · 一个事实只能写在一个文件里
 
@@ -350,7 +350,7 @@ sketch 打 `RESULT <名字> PASS|FAIL` 和 `MEASURE <名字> <数>`，脚本按�
 ```
 # 在 $TEST 下；<build> 换成任意空目录
 arduino-cli compile --warnings all --config-file <ARDUINO_CLI_CONFIG> --fqbn OpenPLC_Alpha:stm32:OPEN-PLC:pnum=PLC_H743,usb=CDCgen --build-path <build> onboard/sdram/RAM_Speed
-python tools/upload_and_watch.py --bin <build>/RAM_Speed.ino.bin --key Output/five-paths-keys/wipe/wipe_root.pem --ports COM12 --tail-seconds 20
+python tools/upload_and_watch.py --bin <build>/RAM_Speed.ino.bin --key <板子信任的私钥> --ports <RS232 口> --tail-seconds 20
 ```
 
 `upload_and_watch.py` 经网口上传并把板子的输出原样打出来，它自带的判据是给 SDRAM 暂存用的，这里只看打出来的 `ROW` 行。结果表写进 `OpenPLC_SDRAM` 的 `README.md` 和 `README.zh-CN.md`，同时写明当时的 cache / MPU 状态（`INFO` 行）。

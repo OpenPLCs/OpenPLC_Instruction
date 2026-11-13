@@ -50,8 +50,8 @@ MAX3221 的 ±5.5V 线电平由**电荷泵**用几只外部电容产生。PB10 �
 
 `PC10 / PC11` 上有两个可选功能：**AF8 = UART4，AF7 = USART3**。
 
-- bootloader 的 printf 控制台现在走 **UART4**，到 MAX3221 再到 RS232 端子 C05/C06（`R1-43` 落地后不再往 RS232 打印）
-- core 里的 `RS232` 走 **USART3**（`core:cores/arduino/main.cpp` 的 `HardwareSerial RS232(PC_11_ALT1, PC_10_ALT1)`）。**`ALT1` 就是选 AF7 的写法**，线一根没变
+- bootloader 的 printf 走 SWO 和 SRAM4 开机缓存，不碰 UART4（`R1-43`）；只有工装镜像用 **UART4** 当命令口和日志口，经 MAX3221 到 RS232 端子 C05/C06
+- core 里的 `RS232` 走 **USART3**（`core:cores/arduino/main.cpp` 的 `RS232Serial RS232(PC_11_ALT1, PC_10_ALT1, RS232_EN)`）。**`ALT1` 就是选 AF7 的写法**，线一根没变
 
 `PH13 / PH14` 那一对也是 UART4（接到扩展口 JunctionLink J4-11 / J4-12）。**同一个 UART 外设只有一个句柄槽位，最后一次 `begin()` 赢** —— 所以 app 侧的控制台放在 USART3 上，扩展口才拿得住 UART4（下表）。
 
@@ -70,7 +70,7 @@ USART3 TX，那是 **PB10 —— 本板的 RS232 使能脚**。
 两个宏定义在 `core:variants/STM32H7xx/H743/variant_PLC_H743.h`，由用例 `P4`（变体断言，
 `$CORE_REPO/tests/variant_check/uart_routing/`）钉住，改错编译就不过。
 
-⚠️ **bootloader 侧不受这条影响** —— 它有自己的 `_write`，`printf` 一直走 UART4 / PC10。
+⚠️ **bootloader 侧不受这条影响** —— 它的 `printf` 走 SWO 和开机缓存（`$BOOT/Core/Src/main.c` 的 `PUTCHAR_PROTOTYPE`），不经任何 UART；工装镜像另外送 UART4。
 
 ### USART3 在这颗芯片上有三组引脚，本板只有一组能用
 
@@ -79,7 +79,7 @@ USART3 TX，那是 **PB10 —— 本板的 RS232 使能脚**。
 | 组 | TX | RX | 本板这两个脚的信号名 |
 |---|---|---|---|
 | 一 | PB10 | PB11 | `RS232_EN` / `RMII_TX_EN` —— 都占了 |
-| 二 | **PC10** | **PC11** | `RS232_TXD` / `RS232_RXD` —— **唯一可用的一组**；bootloader 用 UART4(AF8)，app 用 USART3(AF7) |
+| 二 | **PC10** | **PC11** | `RS232_TXD` / `RS232_RXD` —— **唯一可用的一组**；工装镜像用 UART4(AF8)，app 用 USART3(AF7) |
 | 三 | PD8 | PD9 | `FMC_D13` / `FMC_D14` —— SDRAM 数据线 |
 
 **所以「把控制台从 UART4 挪到 USART3、把 UART4 让给扩展口」只有 PC10/PC11 这一种走法，线一根不用动**（[DECISIONS.md 第 35 条](../tables/DECISIONS.md)把它记成了重开条件）。
@@ -198,9 +198,9 @@ Arduino core 不配这个脚，它停在复位默认值，而**模拟模式断�
 
 ## SRAM4 的 no-init 机制
 
-bootloader 的两个链接脚本（`STM32H743IIKX_FLASH.ld`、`STM32H743IIKX_FLASH_PORTTOOL.ld`）和板卡包的 `ldscript.ld` 都把 SRAM4 前 32 字节挖出来给 boot handoff 记录（`RAM_D3 ORIGIN = 0x38000020`）。
+bootloader 的两个链接脚本（`STM32H743IIKX_FLASH.ld`、`STM32H743IIKX_FLASH_PORTTOOL.ld`）和板卡包的 `ldscript.ld` 都把 SRAM4 前 32 字节挖出来给 boot handoff 记录、其后 4 KiB 给开机日志缓存（`RAM_D3 ORIGIN = 0x38001020`）。
 
-启动代码不碰这 32 字节，所以放在那里的变量**能活过软复位**（掉电仍然丢）。
+启动代码不碰这一段，所以放在那里的变量**能活过软复位**（掉电仍然丢）。
 
 **将来需要"跨软复位保留、又不想依赖 VBAT"的状态时，用这个机制扩展即可**，不要另起炉灶去用 RTC 备份寄存器。
 
@@ -254,7 +254,7 @@ while ((VREFBUF->CSR & VREFBUF_CSR_VRR) == 0U) { }
 
 **实测 SCALE0 = 2493 mV**（标称 2.5 V，VREFINT 原始值 32235）。选 2.5 V 不是随便挑的 —— 模拟前端两条路径都正好配这个满量程，见下。
 
-⚠️ **VRR 置位时输出还没稳，置位后固定再等 20 ms 才读**（`$BOOT/TestCase/common/port_vref.c:35-38`）：2026-08-28 VRR 一置位就测，一次开机 2493 mV、下一次 2763 mV，这个误差会乘进每个 ADC 读数、温度和 DAC 码值。
+⚠️ **VRR 置位时输出还没稳，置位后固定再等 20 ms 才读**（`$BOOT/TestCase/common/port_vref.c` 的 VRR 等待之后）：2026-08-28 VRR 一置位就测，一次开机 2493 mV、下一次 2763 mV，这个误差会乘进每个 ADC 读数、温度和 DAC 码值。
 
 ⚠️ 使能 VREFBUF 的前提是 VREF+ 没有被外部驱动。本板成立：VREFINT 读到满量程 → VREF+ < 1.216 V → 引脚是悬空的，不是被接到 3V3。2026-10-08 原理图核实（Bridge 原理图第 2 页 `SHEET02-Power`）：VREF+（P1）网络 `STM_VREF+` 只接 C44 1 µF、C45 100 nF、TP3，接 VDDA 的 R28 是 `0 R DNP`（贴片表 `Pick Place for 1436_01_SCHAE-BR-PCB.txt` 同为 DNP）；这条网络经 Bridge J1-27 → UpperDeck J7-17 引到 UpperDeck 的 `/VREF`（JP3-2、JP4-2）。**所以 DAC 满量程 = VREFBUF 输出，不是 3.3 V。**
 
@@ -408,7 +408,7 @@ CAN 两根信号跨板走 Upper Deck **J8 pin2（CAN_TXD_PB9）/ pin3（CAN_RXD_
 
 ⚠️ **收进来的位要取反，发出去的不用**（用户 2026-09-09 确认，代码里就是这样）。取反在 `knx_slot_level()`（`TestCase/KNX/knx_test.c:618`）：`slots` 位为 1 返回 0。加上上面 RX 那一路的反相，一共反了两次，所以字符解码是对的、环回能通 —— 但**引脚层的极性理解一直是反的**，两处后果：
 
-1. `TIM1_CC_IRQHandler`（`TestCase/KNX/knx_test.c:295`）把上升沿当脉冲起点，按实际极性那是脉冲**终点**，于是 `w_avg` / `d_avg` 的角色整个互换。实测 `w_avg=152 d_avg=37`：`porttool_knx.c:27` 说 `w_avg` 应接近 35 µs，实际是 **`d_avg=37` 才是那个 35 µs**
+1. `TIM1_CC_IRQHandler`（`TestCase/KNX/knx_test.c:295`）把上升沿当脉冲起点，按实际极性那是脉冲**终点**，于是 `w_avg` / `d_avg` 的角色整个互换。实测 `w_avg=152 d_avg=37`：`porttool_knx.c:38-39` 说 `w_avg` 应接近 35 µs，实际是 **`d_avg=37` 才是那个 35 µs**
 2. `knx_bus_state()` 原来判「总线供电、空闲」要求 PA10 为低，于是这块板子恒判 `bus=odd`。**2026-09-09 已改成只看 PH12**，`ok=`/`idle=` 照旧报出来但不参与判定
 
 **报文级已经端到端验证过了（2026-09-09），所以极性这件事不影响 KNX 可用性：**

@@ -7,7 +7,7 @@
 | 想知道 | 去哪 |
 |---|---|
 | 启动怎么决策、签名怎么验、metadata 怎么记 | [BOOT-SEQUENCE.md](../modules/M1/BOOT-SEQUENCE.md)、[SECTOR-15.md](../modules/M1/SECTOR-15.md)、[M2-ownership.md](../modules/M2-ownership.md) |
-| 三个仓库在哪、哪些代码是跨仓镜像 | `$PROD/docs/repo/ARCHITECTURE.md` |
+| 各仓库在哪、哪些代码是跨仓镜像 | `$PROD/docs/repo/ARCHITECTURE.md` |
 | 引脚、串口、启动模式的实测事实 | [HARDWARE-FACTS.md](../hardware/HARDWARE-FACTS.md) |
 | 需求清单和测试矩阵 | `$PROD/docs/tables/STATUS.md` |
 

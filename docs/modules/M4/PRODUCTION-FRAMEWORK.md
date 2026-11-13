@@ -302,7 +302,3 @@ Tool     ToolFileName      = MK-TMYYMK-01(ADB)_1.3…
 - `--ref COMy` 接标准机（两头都写 `sim` 时是两块模拟板，按「标准机设置」的默认接法接好：标准机 DO1–8 接被测板 DI1–8，被测板 DO1–6 经继电器 RY1–RY6、DO7、DO8 直连到标准机 DI1–8，见 [PORTTOOL-FLOW.md](PORTTOOL-FLOW.md) C.3.7「两块模拟板」）；`UserReading` 在 stdin 上要一个数，不是数就再问，`--yes` 不替人填数
 - **不合固件的方案拒跑**（决策 77）：`CheckAgainstCaps` 报出问题就不跑，列出哪一步、为什么
 
-## 七、还没定的
-
-- **报告推给谁、什么格式**（`PushResult` 的 `sink`）—— 等产线那边的系统确定
-- **仪器与工装板的调用形态** —— `Tool` 类型起进程是兜底方案；工装板若走串口协议，可能值得一个 `Fixture` 类型。等工装板的接口方式（硬件那边）定下来

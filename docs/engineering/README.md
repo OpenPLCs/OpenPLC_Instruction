@@ -22,7 +22,7 @@
 | 看什么 | 讲什么 |
 |---|---|
 | [CUBEMX-RULES.md](../build/CUBEMX-RULES.md) | 改这个 CubeIDE 工程的硬规矩 —— **CubeMX 重新生成后必查的几处** |
-| [ARCHITECTURE.md](../repo/ARCHITECTURE.md) | 三仓布局、路径变量、跨仓镜像清单、RTC 备份寄存器分配 |
+| [ARCHITECTURE.md](../repo/ARCHITECTURE.md) | 仓库布局、路径变量、跨仓镜像清单、RTC 备份寄存器分配 |
 
 这一节没有 `ENG-xx` 需求 —— 它们是**做法**，不是可判定的主张。
 

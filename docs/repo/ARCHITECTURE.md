@@ -1,6 +1,6 @@
-# 三仓布局
+# 仓库布局
 
-这个产品是**三个独立的代码库**（外加工装上位机 `$PORTTOOL`，决策 76），没有共享构建系统。一个功能通常要同时改动其中两到三个。
+这个产品分在下面这些**独立的仓库**里，没有共享构建系统。一个功能通常要同时改动其中两到三个。
 
 ## 路径变量
 
@@ -20,7 +20,7 @@
 | `$IDE` | Arduino IDE 2.x 的安装根目录 |
 | `$A15` | Arduino 的数据目录（装着 `packages/` 那个） |
 | `$PKGIDX` | `OpenPLC_Arduino_PKG_Json` 的 clone —— 只在发板卡包时用 |
-| `$PROD` | `OpenPLC_Instruction` 的 clone（公开仓 `OpenPLCs/OpenPLC_Instruction`）—— 产品设计文档：硬件事实、模块、构建、测试方法、决策 |
+| `$PROD` | `OpenPLC_Instruction` 的 clone（公开仓 `OpenPLCs/OpenPLC_Instruction`）—— 给客户的使用说明和产品设计文档：硬件事实、模块、构建、测试方法、决策（决策 182） |
 
 ⚠️ **这里刻意不写任何一条本机的实际路径** —— 这个仓会被 clone 到别处。**这台机器上每一项解析成了什么，问 `$TEST` 里的 `python tools/common.py --probe`**。
 
@@ -28,7 +28,7 @@
 
 `$CORE_LIVE` 末尾是板卡包版本号，**发版会变**，所以任何地方都不写死它；`$A15/packages/OpenPLC_Alpha/tools/STM32Tools/<版本>` 里那个是随包分发的 IAPTool 版本，两个号互相独立。
 
-## 三个仓库
+## 代码仓库
 
 | | 路径 | 内容 |
 |---|---|---|

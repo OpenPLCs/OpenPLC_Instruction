@@ -72,7 +72,7 @@ CHK-A4 的上限是整个扇区 0，因为根区 2026-09-30 起在扇区 15（�
 |---|---|---|
 | CHK-C1 | 烧 bootloader | ST-Link 报下载完成且校验通过 |
 | CHK-C2 | 启动日志 | 有 `SDRAM staging buffer OK`；`Reset cause` 合理；crypto 自检未报错 |
-| CHK-C3 | **MAC 唯一** | 记录本板 MAC，**和已出货记录比对不重复** |
+| CHK-C3 | **MAC 唯一** | 本板 MAC 和按 UID 算出的一致，不是生成代码里的固定值；不和已出货记录比对：唯一性来自 UID（2026-11-14 定） |
 | CHK-C4 | 以太网 | 拿到 IP，UDP 发现有应答 |
 | CHK-C5 | USB CDC | 枚举出串口，`ping` 答 `OK` |
 | CHK-C6 | RS232 | `$TEST/onboard/rs232/SerialPort` 回显正常 |
@@ -88,8 +88,6 @@ CHK-A4 的上限是整个扇区 0，因为根区 2026-09-30 起在扇区 15（�
 | 第二块 | `00390029 34325103 39393938` | `02:bb:f5:38:99:12`（开机日志实测，与算出的一致） |
 
 ⚠️ 同一个 UID 有两种字序：porttool 的 `uid=` 是 w0 w1 w2（`$BOOT/TestCase/porttool/porttool.c`），发现报文的 `hardwareId` 是 w2 w1 w0（`$BOOT/IAPServer/iap_keyderive.c`）。
-
-⚠️ **CHK-C3 的「和已出货记录比对」**：出货记录的位置 2026-10-10 已定为 `records/<UID>/`。
 
 ---
 

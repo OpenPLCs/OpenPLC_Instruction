@@ -482,6 +482,8 @@ stateDiagram-v2
 
 第 6 步板子上跑的不是工装固件，是板卡包例程 `FixtureDemo`（`$CORE_REPO/libraries/OpenPLC_Ports/examples/FixtureDemo/`）。它只用板卡包 API，所以测到的是用户 app 走的路径（[决策 93](../../tables/DECISIONS.md)）。协议在它里面另有一份实现，是一条跨仓镜像（[ARCHITECTURE.md](../../repo/ARCHITECTURE.md)「跨仓镜像的代码」第 15 条），由 `T4-05` 对两边各跑一遍同一份测试兜住。
 
+同一块板上第 2 步（工装固件）和第 6 步（demo）的读数是否一致，由 `T3-27` 比对，跑法见 [HOW-TO-RUN-TESTS.md](../../engineering/HOW-TO-RUN-TESTS.md)「T3-27」。
+
 控制口仍是 RS232 端子 C05 / C06、115200 8N1：demo 走 `RS232`（USART3），工装固件走 UART4，两者在同一对引脚上（[HARDWARE-FACTS.md](../../hardware/HARDWARE-FACTS.md)「app 侧三条通道各走哪个外设」）。core 的系统日志不在这条线上，走 USB 口（`R3-22`）；demo 用 `OPENPLC_SYSTEM_LOG(OFF)` 把它关掉，USB 口只做 USB 测试，日志仍记在 SRAM4，用 `IAPTool log <ip>` 读（用户 2026-10-20）。
 
 **怎么认出 demo**：`pt.caps` 表头和 `pt.id` 多一个 `demo=<例程版本>`，工装固件没有这个键。`porttool=` 是 demo 照着讲的协议版本，`T4-05` 要求它等于工装固件的 `PORTTOOL_VERSION`。
@@ -919,7 +921,7 @@ flowchart LR
 | 校准门槛 | 开始前按勾选的第 2、4、6 步各自保存的配置算出要测哪几路 AI / AO（`ain` / `aout` 的项按通道，通道 0 算两路），和 `Server.CalibratedChannels` 比；缺了就不开始，列出缺哪几路，给「去研发测试」按钮跳到那个端口（决策 97：没有校准公式，读数比对没有意义）。实现在 `$PORTTOOL/src/ptpanel/full.go` 的 `calGate` |
 | 第 2、4 步 | 按保存的功能 / 老化配置跑（C.3.6「三种配置」） |
 | 第 6 步能不能勾 | 交付包 `stage6/` 里 bootloader、IAPTool、demo 三个文件齐了才能勾，缺了灰掉并列出缺的路径；控制口是模拟板时也灰掉：模拟板没有 ST-Link 和 bootloader（C.3.5「第 6 步的输入」） |
-| 记录 | 运行结束时（全过、某步没过、停下）写一份 `records/<UID>/<YYYYMMDD-HHMMSS>[-<SN>].json`，在 exe 旁边；时间是开始时间，从不覆盖。格式是 `ptreport` 的报告，每一步的 `items` 列出这一步里编了号的每一步（C.3.6「步号」）。SN 原样进报告的 `sn`；文件名里只留字母、数字和 `.` `_` `-`，其余换成 `_` |
+| 记录 | 运行结束时（全过、某步没过、停下）写一份 `records/<UID>/<YYYYMMDD-HHMMSS>[-<SN>].json`，在 exe 旁边；时间是开始时间，从不覆盖。格式是 `ptreport` 的报告，每一步的 `items` 列出这一步里编了号的每一步（C.3.6「步号」），`attempts` 里每次尝试的 `extra.item` 写它属于哪一项（`T3-27` 靠它比对两步的读数）。SN 原样进报告的 `sn`；文件名里只留字母、数字和 `.` `_` `-`，其余换成 `_` |
 | 每一步 | 报告里一条 `StepResult`：`type` 是步号 `2` / `4` / `5` / `6`，`id` 是步名 `functional` / `aging` / `safety` / `user` |
 | 进度 | `records/<UID>/progress.json`：`{"uid": …, "passed": [{"step": 2, "report": "<报告文件名>"}]}`。运行结束时把这次通过的步并进去；勾选的步全都通过了就删掉它 |
 | 续跑 | 点「开始」时，勾选的步里第一个没通过的不是第一步，就问「从第 N 步继续」还是「从头」。继续：前面已通过的步在这次报告里记 `SKIPPED`，原因写它通过时的报告文件；从头：先删进度 |

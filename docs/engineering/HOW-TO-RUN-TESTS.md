@@ -372,6 +372,42 @@ python tools/upload_and_watch.py --bin <build>/RAM_Speed.ino.bin --key <板子�
 
 由工装测：链路回环是 `rs485` 会话，PD4 / PD5 引脚回读是 `pt.run rs485.pins`，见 [PORTTOOL-FLOW.md B.8](../modules/M4/PORTTOOL-FLOW.md)。原来 `TestCase/RS485` 的独立测试已删（[决策 87](../tables/DECISIONS.md)）。
 
+## T3-27 · 板卡包下的端口和工装固件下一致，怎么跑
+
+需求 `R3-26`。同一块板、同一套接线，PortTool 的工装完整测试先在工装固件上跑第 2 步（功能测试），再在板卡包例程 `FixtureDemo` 上跑第 6 步（用户级功能测试），两步测同样的项（[决策 127](../tables/DECISIONS.md)）；比对脚本读这一份记录，逐项比两步的结论和读数。理由：两步在同一次运行里，接线、校准值、标准机都是同一套，差出来的只能是两套固件。
+
+**前提**：板子扇区 15 有 AI1、AI2、AO1、AO2 的校准值（完整测试开始前的校准门槛要它）；标准机接好、在「标准机设置」里登记过、自己也校准过；交付包 `stage6/` 里 bootloader、IAPTool、demo 三个文件齐；ST-Link 和板子的 USB 口接着（第 6 步烧 bootloader、上传 demo 要用）。
+
+| # | 做什么 |
+|---|---|
+| 1 | 交付包里双击 `start.cmd`（Linux 上 `bash start.sh`），选「烧固件进板子」，把工装固件烧进去 |
+| 2 | 打开面板：第一步连控制口；第二步连被测板的 USB、网口、RS485 / CAN 转换器、标准机、ST-Link |
+| 3 | 第三步选「工装完整测试」。功能测试和用户级功能测试两份配置勾同样的端口、同样的项、同样的参数和 AI / AO 测试点（两份的默认本来一样，没改过就不用动）；用户级功能测试的时间选「单次」 |
+| 4 | 第 ② 层只勾「功能测试」和「用户级功能测试」，点「配置完成，开始测试」。问「从第 N 步继续」还是「从头」时选「从头」：两步要在同一份记录里 |
+| 5 | 等它跑完：第 2 步测完，第 6 步烧 bootloader、上传 demo、测、恢复出厂。记录写在 PortTool 旁边的 `records/<UID>/<开始时间>.json`，右侧「结果」页写着路径 |
+| 6 | 在 `$TEST` 根目录跑 `python tools/compare_fixture_and_demo_readings.py <那份记录>` |
+| 7 | 板子这时只剩 bootloader 和校准值；还要用工装固件就回到第 1 步 |
+
+第 2 步没过时第 6 步不跑，记录里没有可比的，脚本退出码 2：修好再从第 1 步来。两步分在两次运行里时，传两份记录：`python tools/compare_fixture_and_demo_readings.py <有第 2 步的记录> <有第 6 步的记录>`，两份的板子 UID 必须相同。
+
+**比什么**（两步都跑了的项才比；只在一步里的项列出来，不算不一致）：
+
+| 比什么 | 记录里的字段 | 默认容差 | 默认值从哪来 |
+|---|---|---|---|
+| 每一项、每一路的结论 | `items[].outcome`（按 `item` 和 `channel` 对上） | 必须相同 | 这些项的判据是过 / 不过，同一块板两套固件该给同一个结论 |
+| AI1、AI2 每个测试点 | 这一点的读数偏差 `dev_pct_fs`（% FS），两步相减 | 0.5 % FS | 判据 `ai1-read` / `ai2-read` 的 ±1 % FS 的一半：两步都过、却差了大半个判据带时要报出来。没实测过，上板后按实测改（[决策 164](../tables/DECISIONS.md)） |
+| AO1、AO2 每个测试点 | 同上，标准机读到的 | 0.5 % FS | 同上，判据 `ao1-out` / `ao2-out` |
+| 温度两路 | `ch1[1]`、`ch2[1]`（0.1 °C） | 2.0 °C | 两步之间隔几分钟，板子会升温。没实测过 |
+| 温度通道的基准 | `vdda`（mV） | 10 mV | 同一颗 VREFBUF，两边只差读法。没实测过 |
+
+AI 的原始码（`raw`）和 AO 的标准机原始码（`ref_raw`）照样打出来、不判：偏差就是从它们算的。网口、USB、SD、SDRAM 的速率不比，只比结论：两套固件的协议栈和驱动不同，速率本来不一样（[PORTTOOL-FLOW.md](../modules/M4/PORTTOOL-FLOW.md) A.9）。
+
+**测试点怎么对上**：记录里每个测试点是一次 `attempts[]`，带 `set`（目标值）和 `item`（属于哪一项）；脚本按 `item` 认它是哪一路，再按 `set` 对上两步的同一点。
+
+容差都能改：`--ai-tol`、`--ao-tol`（% FS）、`--temp-tol`（°C）、`--vdda-tol`（mV）。退出码：0 都一致，1 有不一致，2 输入不对（读不了、没有第 2 或第 6 步、两份不是同一块板、没有可比的）。脚本自己的单元测试：`python tools/test_compare_fixture_and_demo_readings.py`（手写的最小记录，格式照 `$PORTTOOL/src/ptreport/ptreport.go`；没用真记录：模拟板不写记录、第 6 步在模拟板上不能勾，见 [PORTTOOL-FLOW.md](../modules/M4/PORTTOOL-FLOW.md) C.3.3）。
+
+**测不到什么**：demo 没有的项（编码器计数、KNX、复位原因等，A.9）；两步都只跑一次，读数的离散只靠容差兜着。
+
 ## T1-21 / T1-22 · 掉电中断，怎么跑
 
 ```bash

@@ -77,12 +77,13 @@ flowchart TD
 | **R3-23** | 端子归用户 | `RS232` 端子只在用户程序调 `RS232.begin()` 时才打开（先配串口引脚、再拉高 `RS232_EN`），`RS232.end()` 关；用户打印用 `Serial`（即 `SerialUSB`，USB 口）；系统日志带 `[sys]` 前缀，sketch 里写 `OPENPLC_SYSTEM_LOG(OFF);` 可让它不往 USB 口吐；USB 口没打开时系统日志只进缓存、不拖慢程序；例程不等电脑，只打一次的输出（开头的说明、一次性的结果、初始化失败的原因）在 `Serial` 从没连变成连上时补打（复位后 USB 必然断开重连，串口工具要重开；等 3 秒不够，实测过） | 手工：开机到 `begin()` 前 RS232 端子不开（同 `R1-43`）；`$TEST` `run_examples.py --only RS232_Echo`（`begin()` 后收发通）；`FixtureDemo`（写了 `OPENPLC_SYSTEM_LOG(OFF)`）USB 口开着没有 `[sys]` 行、`IAPTool log <ip>` 仍读得到；`run_examples.py --skip-upload` 开口时例程补打说明。`RS232.end()` 和「不拖慢程序」没有例程用到，不测 | 🟡 还差 `RS232.end()`、不拖慢程序 |
 | **R3-24** | KNX 角色写在 sketch 里 | 用 `OpenPLC_KNX` 的 sketch 在 `.ino` 里写一行 `OPENPLC_KNX_ROLE(TP_DEVICE);`（TP 设备，0x07B0）或 `OPENPLC_KNX_ROLE(IP_ROUTER);`（IP 路由器，0x091A），同 `OPENPLC_APP_VERSION` 的写法；IDE 菜单里没有 KNX 角色。没写角色又用了这个库，编译报错并给出要加的那一行；不用 KNX 的 sketch 照常编（用户 2026-10-15 定） | P5（6 个 KNX 例程按各自写的角色编过）；没写角色报错 手工 | ✅ |
 | **R3-25** | 认出板子 | Arduino IDE 端口列表里板子的 COM 口旁标出板子名（`boards.txt` 声明 `upload_port.0.vid=0x0483`、`upload_port.0.pid=0x5740`）；电脑经 USB 打开板子的串口或经网口单独给板子发请求时，LED3（PE2，[HARDWARE-FACTS.md](../hardware/HARDWARE-FACTS.md)）快闪约 2 s 后恢复原状态，广播发现不闪（[决策 161](../tables/DECISIONS.md)）；装了板卡包的 IDE 2 在端口下拉框里选中板子（USB 口或网口）时，那块板同样快闪，装完要重启一次 IDE（[决策 177](../tables/DECISIONS.md)）；闪烁和网络一样靠 `delay()` 或 `loop()` 返回推进，`loop()` 长时间不调 `delay()` 时只亮不闪（同 `R3-07`） | 手工：两块板都接着，IDE 下拉框里各选一次 USB 口和网口、开一次串口监视器、经网口上传一次，看哪块闪 | 🟡 还差 Linux / macOS 上选中即闪 |
+| **R3-26** | 板卡包和工装一致 | 同一块板、同样的接线和输入，板卡包例程 `FixtureDemo`（只用板卡包 API）测出的每个端口的结论和读数与工装固件测出的一致，读数差在容差内（决策 124、127；用户 2026-11-14：「评估板卡包下，硬件工作跟工装下硬件工作是一致的」） | `T3-27` | ⬜ |
 
-**共 25 条。其中 18 条有测试用例直接测它，7 条没有。**
+**共 26 条。其中 19 条有测试用例直接测它，7 条没有。**
 
 | 「谁证明」是什么 | 条数 | 哪些 |
 |---|---|---|
-| 有 `T3-xx` 用例直接测 | **18** | `R3-01` `R3-03` `R3-05` `R3-06` `R3-08` `R3-09` `R3-10` `R3-11` `R3-12` `R3-13` `R3-14` `R3-15` `R3-16` `R3-17` `R3-18` `R3-20` `R3-21` `R3-22` |
+| 有 `T3-xx` 用例直接测 | **19** | `R3-01` `R3-03` `R3-05` `R3-06` `R3-08` `R3-09` `R3-10` `R3-11` `R3-12` `R3-13` `R3-14` `R3-15` `R3-16` `R3-17` `R3-18` `R3-20` `R3-21` `R3-22` `R3-26` |
 | 纯手工 | **5** | `R3-02` `R3-07` `R3-19` `R3-23` `R3-25` |
 | 静态检查 P5 + 手工 | **1** | `R3-24` |
 | 只有静态检查 | **1** | `R3-04` |
@@ -148,8 +149,9 @@ flowchart TD
 | `T3-24` | `R3-22` | 开机日志缓存 | 乱码时静默初始化、上电冷启动不读直接清空；写入后热复位仍在、序号连续、去掉行尾换行；写满从最旧整条丢；超过 200 字节拆开拼回一致；记录坏、头校验坏、版本比自己新都整块重置并只剩一条 `[sys][LOG]`；只吐没吐过的、`sent` 跨热复位保留且不回退（格式见 [BOOT-LOG.md](M1/BOOT-LOG.md)） | `$CORE_REPO/tests`：`python tests/selfcheck.py` | 主机侧（真 `boot_log.c` + 内存代替 SRAM4，PRIMASK、清 cache 是桩），测不到 ECC、D-cache、中断抢占 | ✅ |
 | `T3-25` | `R3-10` | AO 设 0 关 DAC 缓冲（决策 152） | 假 DAC 上依次写 非 0 → 0 → 非 0 → 0：0 时缓冲关、非 0 时开；切换时先关通道再改缓冲；非 0 到非 0 不断通道 | `$CORE_REPO` 里 `python tests/selfcheck.py`（CTest 的 `T3-25`） | 主机侧；测不到真芯片的输出电平，那由上板看 | ✅ |
 | `T3-26` | `R3-22` | 死机记录复位后从 USB 口吐出 | 经 USB 传 `onboard/fault_record/FaultRecord`，在 USB 口发 `F` 让它写未映射地址；复位后用 pyserial 默认方式（开口即拉 DTR）再开口，收到 `[sys][FAULT] BusFault`，后面接着这次开机的 `[sys][BL]` 行 | `python tools/run_fault_record.py` | 真板子；只造 BusFault，不造 HardFault、看门狗 | ✅ |
+| `T3-27` | `R3-26` | 板卡包下的端口和工装固件下一致 | 同一块板上第 2 步（工装固件）和第 6 步（`FixtureDemo`）都跑了的每一项结论相同，AI / AO 每个测试点和温度的读数差在容差内；比哪些字段、默认容差见 [HOW-TO-RUN-TESTS.md](../engineering/HOW-TO-RUN-TESTS.md)「T3-27」 | PortTool 跑工装完整测试（只勾第 2、6 步），再 `python tools/compare_fixture_and_demo_readings.py <记录>` | 真板子 + 标准机 + ST-Link + 交付包；只比两步都跑了的项，demo 没有的项（[PORTTOOL-FLOW.md](M4/PORTTOOL-FLOW.md) A.9）比不了 | ⬜ |
 
-**共 26 条。`T3-05` `T3-11` 在 Renode 里跑，`T3-07` `T3-08` `T3-09` `T3-10` `T3-12` `T3-22` `T3-23` `T3-24` `T3-25` 在主机上跑，其余要真板子。**
+**共 27 条。`T3-05` `T3-11` 在 Renode 里跑，`T3-07` `T3-08` `T3-09` `T3-10` `T3-12` `T3-22` `T3-23` `T3-24` `T3-25` 在主机上跑，其余要真板子。**
 
 ¹ **自检失败不改变任何控制流。** 板子仍然安全 —— 上传会在 CRC 那步失败、app 区不受影响。
 这行日志的作用只是**把根因直接说出来**，否则 SDRAM 坏掉的症状会表现成

@@ -14,6 +14,7 @@ tool output and this README are English.
 
 | Document | What it covers |
 |---|---|
+| [docs/user/README.md](docs/user/README.md) | Where to start: every document a user of the board needs, including the library READMEs and the release notes |
 | [docs/user/FLASH-BOOTLOADER.md](docs/user/FLASH-BOOTLOADER.md) | Flashing the bootloader onto a board over ST-LINK |
 | [docs/user/ARDUINO-IDE.md](docs/user/ARDUINO-IDE.md) | Installing the board package in Arduino IDE 2 and uploading a sketch |
 

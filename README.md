@@ -56,7 +56,7 @@ has to be uploaded again afterwards.
 
    ![Run Configurations with OpenPLC_BootLoader](docs/user/img/cubeide-runconfig.png)
 
-   <!-- screenshot: docs/user/img/cubeide-run.png: console "Download verified successfully" -->
+   ![Bootloader flashed: only sector 0 is erased, Download verified successfully](docs/user/img/cubeide-run.png)
 
    With STM32CubeProgrammer instead: connect over ST-LINK (SWD), open
    `Debug/OpenPLC_BootLoader.hex`, *Download*.

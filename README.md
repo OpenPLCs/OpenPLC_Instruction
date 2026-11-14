@@ -1,32 +1,233 @@
-# OpenPLC_Instruction
+# OpenPLC user guide
 
-User instructions and product design documents for the OpenPLC board (STM32H743), all for
-release 0.2.0. The code lives in the sibling repositories; these documents say how to use it
-and what it is for.
+How to set up the OpenPLC board (STM32H743) and program it from Arduino IDE, for release
+0.2.0. Follow the steps in order the first time.
 
-The user instructions are in English. The design documents are in Chinese; code comments,
-tool output and this README are English.
-
-`$PROD` in a citation means this repository: `$PROD/docs/tables/DECISIONS.md` is
-`docs/tables/DECISIONS.md` here.
-
-## 1. User instructions
-
-| Document | What it covers |
+| Step | |
 |---|---|
-| [docs/user/README.md](docs/user/README.md) | Where to start: every document a user of the board needs, including the library READMEs and the release notes |
-| [docs/user/FLASH-BOOTLOADER.md](docs/user/FLASH-BOOTLOADER.md) | Flashing the bootloader onto a board over ST-LINK |
-| [docs/user/ARDUINO-IDE.md](docs/user/ARDUINO-IDE.md) | Installing the board package in Arduino IDE 2 and uploading a sketch |
-| [docs/user/KEYS-AND-OWNERSHIP.md](docs/user/KEYS-AND-OWNERSHIP.md) | Setting up a new board, keys and colleagues, handing a board over, factory reset |
+| 1 | [Download the software](#1-download-the-software) |
+| 2 | [Flash the bootloader](#2-flash-the-bootloader) (once per board) |
+| 3 | [Install the board package in Arduino IDE](#3-install-the-board-package-in-arduino-ide) |
+| 4 | [Linux and macOS: permissions](#4-linux-and-macos-permissions) |
+| 5 | [Upload a sketch](#5-upload-a-sketch) |
+| 6 | [Keys: who may upload](#6-keys-who-may-upload) |
+| 7 | [Factory reset](#7-factory-reset) |
+| | [Troubleshooting](#troubleshooting) |
 
-## 2. Hardware
+What changed in 0.2.0 and how to upgrade a board already in service:
+[release notes](https://github.com/OpenPLCs/OpenPLC_BootLoader/blob/0.2.0/RELEASE-NOTES.md).
+
+## 1. Download the software
+
+| Software | What for | Needed |
+|---|---|---|
+| [Arduino IDE 2](https://www.arduino.cc/en/software) | Writing and uploading sketches | Always |
+| An ST-LINK probe (SWD) and [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) | Building and flashing the bootloader | Once per new board |
+| [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) | Flashing the bootloader without STM32CubeIDE | Optional |
+
+Windows, Linux and macOS all work. Connect the board's USB port to the PC; for uploads over
+Ethernet, also connect it to a network where a DHCP server gives it an address.
+
+## 2. Flash the bootloader
+
+The bootloader is what lets Arduino IDE upload sketches. A board that already runs
+bootloader 0.2.0 skips this step. A board with an older bootloader needs it, and its sketch
+has to be uploaded again afterwards.
+
+1. Get the source:
+
+   ```
+   git clone --branch v0.2.0 https://github.com/OpenPLCs/OpenPLC_BootLoader.git
+   ```
+
+2. In STM32CubeIDE: *File > Import > General > Existing Projects into Workspace*, select the
+   cloned folder and import the project `OpenPLC_BootLoader`. Then *Project > Build Project*;
+   the console ends with `0 errors`.
+
+   <!-- screenshot: docs/user/img/cubeide-build.png: Project Explorer with OpenPLC_BootLoader, console "Build Finished. 0 errors" -->
+
+3. Connect the ST-LINK to the JTAG connector on the upper deck and power the board.
+
+   ![JTAG connector on the upper deck](docs/user/img/board-jtag-connector.png)
+
+4. *Run > Run Configurations...*, select *STM32 C/C++ Application > OpenPLC_BootLoader* (the
+   repository ships this configuration), *Run*. The console ends with
+   `Download verified successfully`.
+
+   <!-- screenshot: docs/user/img/cubeide-run.png: Run menu with OpenPLC_BootLoader, console "Download verified successfully" -->
+
+   With STM32CubeProgrammer instead: connect over ST-LINK (SWD), open
+   `Debug/OpenPLC_BootLoader.hex`, *Download*.
+
+   ⚠️ **Do not run a full chip erase.** The last flash sector holds the board's calibration
+   values, written at production, and its owner record; a full chip erase deletes both.
+
+5. Disconnect the probe and connect the board's USB port to the PC. A board without a sketch
+   stays in the bootloader, and its USB port appears on the PC (`COMx` on Windows,
+   `/dev/ttyACMx` on Linux).
+
+## 3. Install the board package in Arduino IDE
+
+1. *File > Preferences*, and add this line to *Additional boards manager URLs*:
+
+   ```
+   https://raw.githubusercontent.com/OpenPLCs/OpenPLC_Arduino_PKG_Json/master/package_openplc_alp_index.json
+   ```
+
+   ![File > Preferences](docs/user/img/ide-file-preferences.png)
+
+2. *Tools > Board > Boards Manager...*, search for `OpenPLC`, pick the newest version of
+   **OpenPLC_Alpha H743IIKx** and click *Install*. An older version is upgraded in place.
+   If you installed 0.2.0 before 2026-11-14, click *Remove* and then *Install* once: 0.2.0 was
+   republished with the same version number, so the IDE does not offer it as an update.
+
+   ![Boards Manager search](docs/user/img/boards-manager-search.png)
+
+   ![Board package installed](docs/user/img/boards-manager-installed.png)
+
+3. **Close and restart Arduino IDE once.** The package brings an IDE extension that is
+   loaded only at start-up.
+
+4. *Tools > Board > OpenPLC_Alpha H743IIKx > OPEN-PLC*. Leave the other *Tools* menus at
+   their defaults.
+
+   <!-- screenshot: docs/user/img/ide-select-board.png: Tools > Board > OpenPLC_Alpha H743IIKx > OPEN-PLC -->
+
+## 4. Linux and macOS: permissions
+
+- **Linux: serial port.** Add your user to the `dialout` group, then log out and in again:
+  `sudo usermod -aG dialout $USER`
+  ([Arduino help](https://support.arduino.cc/hc/en-us/articles/360016495679-Fix-port-access-on-Linux)).
+- **Scripts and tools.** The board package installs its scripts and tools as executables, so
+  normally nothing is needed. Only if a build or an upload stops with `Permission denied`,
+  make them executable.
+
+  Linux:
+
+  ```
+  P=~/.arduino15/packages/OpenPLC_Alpha
+  chmod +x $P/hardware/stm32/0.2.0/system/extras/*.sh \
+           $P/hardware/stm32/0.2.0/tools/discovery/bin/linux_amd64/network_discovery \
+           $P/tools/STM32Tools/0.2.0/linux/IAPTool
+  ```
+
+  macOS:
+
+  ```
+  P=~/Library/Arduino15/packages/OpenPLC_Alpha
+  chmod +x $P/hardware/stm32/0.2.0/system/extras/*.sh \
+           $P/hardware/stm32/0.2.0/tools/discovery/macos-launcher.sh \
+           $P/hardware/stm32/0.2.0/tools/discovery/bin/darwin_*/network_discovery \
+           $P/tools/STM32Tools/0.2.0/macosx/IAPTool*
+  ```
+
+## 5. Upload a sketch
+
+1. **Pick the port** under *Tools > Port*. The board is listed once for each connection;
+   the port you pick decides how the sketch is uploaded:
+
+   | Port | Upload goes over |
+   |---|---|
+   | The board's USB serial port, labelled `OPEN-PLC` | USB |
+   | The board's IP address | Ethernet |
+
+   Picking a port makes LED3 on that board blink fast for about 2 s, so you can tell
+   several boards apart.
+
+   <!-- screenshot: docs/user/img/ide-port.png: Tools > Port with the OPEN-PLC USB port and the network port -->
+
+2. **Open an example** under *File > Examples > OpenPLC_Ports* (or `OpenPLC_KNX`,
+   `OpenPLC_SDRAM`). Each example's header says what to connect and what you should see.
+   Every sketch needs the line `OPENPLC_APP_VERSION(1, 0, 0);` (each field 0 to 255; raise
+   it for each new release of your sketch); a sketch without it does not build.
+
+3. **Click *Upload*.** If a sketch is running, the IDE asks it to restart into the
+   bootloader; the board starts the new sketch when the upload is done.
+
+   <!-- screenshot: docs/user/img/ide-upload-output.png: upload output of a first upload, claiming the board -->
+
+The first upload to a new or factory-reset board makes it yours: see the next step.
+
+An upload whose version is lower than the one the board runs is refused. To install an older
+version anyway, set *Tools > Force flash (allow older version)* to **Yes**; it works once,
+until the menu has been set back to **No** and an upload has run.
+
+## 6. Keys: who may upload
+
+A board runs only sketches signed with its owner's key.
+
+- **The first upload claims the board.** A new or factory-reset board has no owner; the first
+  upload makes this PC's key its owner. If the PC has no key yet, one is created and its path
+  is printed in the upload output.
+- **Back up the key file.** Without it nobody can upload to the board until it is
+  factory-reset. To upload from another PC, copy the file to the same place there.
+
+  | System | Key file |
+  |---|---|
+  | Windows | `%AppData%\openplc\keys\fw_signing_key.pem` |
+  | Linux | `~/.config/openplc/keys/fw_signing_key.pem` |
+  | macOS | `~/Library/Application Support/openplc/keys/fw_signing_key.pem` |
+
+- **Lost the key:** [factory-reset](#7-factory-reset) the board, then upload.
+- **Colleagues with their own keys, revoking them, handing a board to another owner:**
+  [KEYS-AND-OWNERSHIP.md](docs/user/KEYS-AND-OWNERSHIP.md).
+
+## 7. Factory reset
+
+Removes the board's owner, so the next upload claims it again. Calibration values stay. The
+sketch stays in flash but does not start until that upload.
+
+1. Reset the board (RESET button, or switch it off and on). LED3 blinks fast for 2 s.
+2. Press BOOT0 while LED3 blinks and keep holding it.
+3. About 10 s after the reset LED3 lights steadily: the factory reset is armed.
+4. Release BOOT0 within 30 s of the reset. The owner is removed and the board waits in its
+   bootloader for an upload.
+
+To cancel: reset the board while LED3 is lit steadily. Holding BOOT0 longer than 30 s also
+cancels it.
+
+**Only to enter the bootloader** (for example when the running sketch never returns from
+`loop()` and so does not answer an upload): do steps 1 and 2, and release BOOT0 as soon as
+LED3 stops blinking. Do not hold BOOT0 while switching on: it is also the chip's boot pin and
+keeps the bootloader from starting.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| The board does not answer an upload while the sketch runs | The board serves the network and upload requests between `loop()` calls and inside `delay()`. Let `loop()` return, or [enter the bootloader by hand](#7-factory-reset) |
+| Upload refused: signature or owner mismatch | The board belongs to another key. Use that key, or [factory-reset](#7-factory-reset) the board |
+| The Serial Monitor shows nothing at 1200 baud | 1200 baud is reserved for uploads. Pick another rate |
+| Lines starting with `[sys]` in the Serial Monitor | The board's system log; write `OPENPLC_SYSTEM_LOG(OFF);` in the sketch to turn it off |
+| Linux: the IDE cannot open the USB port | [Add your user to `dialout`](#4-linux-and-macos-permissions) |
+
+## Using the board in a sketch
+
+Start from the examples. The library READMEs ship with the board package:
+[OpenPLC_Ports](https://github.com/OpenPLCs/OpenPLC_Arduino_PKG/blob/v0.2.0/libraries/OpenPLC_Ports/README.md) ·
+[OpenPLC_SDRAM](https://github.com/OpenPLCs/OpenPLC_Arduino_PKG/blob/v0.2.0/libraries/OpenPLC_SDRAM/README.md) ·
+[OpenPLC_SD](https://github.com/OpenPLCs/OpenPLC_Arduino_PKG/blob/v0.2.0/libraries/OpenPLC_SD/README.md) ·
+[OpenPLC_KNX](https://github.com/OpenPLCs/OpenPLC_Arduino_PKG/blob/v0.2.0/libraries/OpenPLC_KNX/README.md) ·
+[ETS product](https://github.com/OpenPLCs/OpenPLC_ETS_Prod/blob/master/README.md) ·
+[IAPTool commands](https://github.com/OpenPLCs/OpenPLC_IAPTool/blob/v0.2.0/README.md)
+
+---
+
+<details>
+<summary><b>Design and engineering documents</b> (for developers; most users do not need them)</summary>
+
+
+These say what the product is and why it is built this way: requirements, test cases,
+decisions. The design documents are in Chinese. `$PROD` in a citation means this repository.
+
+### Hardware
 
 | Document | What it covers |
 |---|---|
 | [docs/hardware/HARDWARE-FACTS.md](docs/hardware/HARDWARE-FACTS.md) | Verified hardware facts, each linked to the schematic or datasheet it comes from |
 | [docs/standards/IEC-61131-2.md](docs/standards/IEC-61131-2.md) | What IEC 61131-2 requires of this board |
 
-## 3. Modules
+### Modules
 
 One main document per module (requirements, test cases, design), with its detail documents below it.
 
@@ -50,7 +251,7 @@ One main document per module (requirements, test cases, design), with its detail
 | [docs/modules/M4/PRODUCTION-FRAMEWORK.md](docs/modules/M4/PRODUCTION-FRAMEWORK.md) | Production test framework: plan files and step sequences |
 | [docs/modules/M4/PROD-CONFIG-ITEMS.md](docs/modules/M4/PROD-CONFIG-ITEMS.md) | Production test configuration items |
 
-## 4. Repositories and build
+### Repositories and build
 
 | Document | What it covers |
 |---|---|
@@ -59,7 +260,7 @@ One main document per module (requirements, test cases, design), with its detail
 | [docs/build/BOOTLOADER-PROJECT-LAYOUT.md](docs/build/BOOTLOADER-PROJECT-LAYOUT.md) | Bootloader project layout: flash partitions, size budget, modules, lwIP |
 | [docs/build/CUBEMX-RULES.md](docs/build/CUBEMX-RULES.md) | Rules for changing the CubeIDE project |
 
-## 5. Testing
+### Testing
 
 | Document | What it covers |
 |---|---|
@@ -69,7 +270,7 @@ One main document per module (requirements, test cases, design), with its detail
 | [docs/engineering/BOOTLOADER-STAND-IN.md](docs/engineering/BOOTLOADER-STAND-IN.md) | Bootloader stand-in: the real code on the PC instead of a hand-written fake board |
 | [docs/engineering/HOW-TO-RUN-PORTTOOL-TESTS.md](docs/engineering/HOW-TO-RUN-PORTTOOL-TESTS.md) | PortTool tests |
 
-## 6. Decisions and tables
+### Decisions and tables
 
 | Document | What it covers |
 |---|---|
@@ -83,7 +284,7 @@ One main document per module (requirements, test cases, design), with its detail
 
 `tools/` holds the checks that guard these documents.
 
-## Checks
+### Checks
 
 ```
 python tools/check_docs.py
@@ -93,6 +294,8 @@ Runs P7 (requirements and test cases agree), P8 (no claim written in two documen
 P9 (every path a document names exists), P13 (no renamed id is still cited) and P18
 (the id registry is up to date). P7, P9 and P13 also read the code repositories when
 they are cloned beside this one; a repository that is missing is skipped by name.
+
+</details>
 
 ## License
 

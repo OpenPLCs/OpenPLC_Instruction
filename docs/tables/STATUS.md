@@ -50,10 +50,10 @@
 |---|---|---|---|---|---|---|
 | [M1 固件升级](../modules/M1-firmware-upgrade.md) | 45 | 43 | 2 | | | ✅ |
 | [M2 归属与信任](../modules/M2-ownership.md) | 4 | 3 | 1 | | | ✅ |
-| [M3 应用运行环境](../modules/M3-app-runtime.md) | 26 | 17 | 7 | 2 | | ✅ |
+| [M3 应用运行环境](../modules/M3-app-runtime.md) | 26 | 18 | 6 | 2 | | ✅ |
 | [M4 产线工装](../modules/M4-production-fixture.md) | 3 | 1 | 1 | | 1 | ⚠️ `R4-02` ❌ |
 | [工程约束](../engineering/README.md) | 9 | 9 | | | | ✅ |
-| **合计 87 条** | | **73** | **11** | **2** | **1** | |
+| **合计 87 条** | | **74** | **10** | **2** | **1** | |
 
 ⚠️ 另外两条（`C13` 产线发唯一密钥、`C14` flash 写保护 WRP）**2026-09-04 定了不做**，去处是 [DEFERRED-DESIGNS.md](DEFERRED-DESIGNS.md)，不进功能表。
 

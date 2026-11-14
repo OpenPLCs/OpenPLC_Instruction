@@ -65,7 +65,7 @@ flowchart TD
 | **R3-11** | 复位原因 | sketch 能知道上次复位的原因（看门狗、上电、复位键、软件复位），用来自己决定看门狗复位之后怎么办（决策 80） | `T3-08`（真板子 2026-10-09 `$TEST` `run_t3_08.py` 过） | ✅ |
 | **R3-12** | KNX TP 收发 | `OpenPLC_KNX` 在 TP 总线上按 STKNX 的位时序收发帧、应答、重发，空闲时不占总线（[KNX-TP-DATA-LINK.md](M3/KNX-TP-DATA-LINK.md)） | `T3-09` | 🟡 还差 `T3-13` |
 | **R3-13** | 文件经串口进 SD 卡 | `OpenPLC_Ports` 能按 YMODEM 从串口收一个文件（名字、精确长度、丢包重传），例程 `SD_FileReceive` 经 USB（`Serial`）收，把它写进 SD 卡并读回校验 | `T3-10`（上板走 `T3-06`） | ✅ |
-| **R3-14** | SD 卡和文件系统 | 板卡包自带 SD 卡读写和 FAT32 / exFAT 文件系统（`OpenPLC_SD` + FatFs），MBR 和 GPT 分区的卡都认（`FF_LBA64 1`：电脑格出来的卡常是 GPT），接口照 Arduino 的 `SD` / `File`，不含 GPL 代码（决策 84） | `T3-12`（上板走 `T3-06`、Renode 走 `T3-11`） | 🟡 |
+| **R3-14** | SD 卡和文件系统 | 板卡包自带 SD 卡读写和 FAT32 / exFAT 文件系统（`OpenPLC_SD` + FatFs），MBR 和 GPT 分区的卡都认（`FF_LBA64 1`：电脑格出来的卡常是 GPT），接口照 Arduino 的 `SD` / `File`，不含 GPL 代码（决策 84） | `T3-12`（上板走 `T3-06`、Renode 走 `T3-11`）；GPT 分区 + exFAT 的卡在真板上由 `T3-27` 的 `sd.probe`、`sd.rw` 测过（2026-11-14） | ✅ |
 | **R3-15** | KNX 总线监视 | `KNX_BusMonitor` 不经 ETS 打印 TP 总线上每一帧，并把 `Serial`（USB 口，`R3-23`）输入的组写发到总线上（[KNX-TP-DATA-LINK.md](M3/KNX-TP-DATA-LINK.md)） | `T3-13` | ✅ |
 | **R3-16** | KNX 联动 | 板子作为 KNX TP 设备（0x07B0）由 ETS 设地址、下载后，和总线上别的 KNX 设备互相控制：别人控制板子的继电器和 AO，板子的 DI、温度阈值和 AI 测量值发给别人，温度过阈值时本板 DO2 也出 24 V（阈值从 `Serial` 设） | `T3-14`–`T3-18` `T3-20` | ✅ |
 | **R3-17** | KNX IP 路由器 | `KNX_IPRouter`（0x091A）在网口（KNXnet/IP）和 TP 总线之间转发报文 | `T3-19`（ETS 给路由器本身编程不在这一轮：没有路由器的产品文件） | ⬜ |

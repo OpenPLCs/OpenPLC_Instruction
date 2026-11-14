@@ -436,7 +436,7 @@ python tools/upload_and_watch.py --bin <build>/RAM_Speed.ino.bin --key <板子�
 | RTC 晶振 | 频率偏差、起振余量 | 硬件 | `rtc.lsefreq`、`rtc.lsemargin`（研发） | 无此功能 | — | — |
 | 复位原因 | 读得出这次是怎么复位的 | `R3-11` | `reset.cause`（研发） | 无此功能 | — | `T3-08` |
 
-**还缺的**：标准机那几项（DI、DO、继电器、AI、AO）工装和 demo 都有测试项，还没在板子上比过（`T3-27`）；DO 压降上限、温度容差待实测；`AI_Inputs` 刚加进 `run_examples.py`，还没上板跑；`T3-19` KNX IP 路由器没上板跑过。
+**还缺的**：标准机那几项（DI、DO、继电器、AI、AO）工装和 demo 都有测试项，还没在板子上比过（`T3-27`）；DO 压降上限、温度容差待实测；`AI_Inputs` 刚加进 `run_examples.py`，还没上板跑；`T3-19` KNX IP 路由器没上板跑过；`T3-13`、`T3-18` 要在 USB 输入下重跑（2026-10-15 人工走时输入还走 RS232）。
 
 ## T3-27 · 板卡包下的端口和工装固件下一致，怎么跑
 

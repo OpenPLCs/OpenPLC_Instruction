@@ -82,17 +82,11 @@ restart into the bootloader, and the board starts the new sketch when the upload
 A board fresh from the factory, or after a factory reset, has no owner and runs nothing. The
 first upload makes this PC's signing key its owner; from then on the board accepts only sketches
 signed with that key. If the PC has no key yet, one is created and its path is printed in the
-upload output:
+upload output.
 
-| System | Key file |
-|---|---|
-| Windows | `%AppData%\openplc\keys\fw_signing_key.pem` |
-| Linux | `~/.config/openplc/keys/fw_signing_key.pem` |
-| macOS | `~/Library/Application Support/openplc/keys/fw_signing_key.pem` |
-
-**Keep a copy of this file.** To upload from another PC, copy it to the same place there. Several
-people sharing boards each keep their own key, certified by the owner: see the
-[IAPTool README](https://github.com/OpenPLCs/OpenPLC_IAPTool/blob/v0.2.0/README.md).
+**Keep a copy of the key file** ([where it is](KEYS-AND-OWNERSHIP.md#where-the-key-is)). To
+upload from another PC, copy it to the same place there. Colleagues uploading with their own
+keys, handing a board over and a lost key are in [KEYS-AND-OWNERSHIP.md](KEYS-AND-OWNERSHIP.md).
 
 ### Uploading an older sketch version
 
@@ -115,7 +109,7 @@ The board now waits in the bootloader on USB and Ethernet; upload as usual.
 | ⚠️ | |
 |---|---|
 | Do not hold BOOT0 while switching on | The button is also the chip's boot pin: held at power-on, it keeps the bootloader from starting |
-| Do not hold BOOT0 for 10 seconds | That arms a **factory reset**, shown by LED3 lit steadily. Releasing the button then removes the board's owner; switching the board off instead cancels it. After a factory reset the board runs no sketch until the next upload claims it again |
+| Do not hold BOOT0 for 10 seconds | That arms a **factory reset**, shown by LED3 lit steadily; releasing the button then removes the board's owner. See [Factory reset](KEYS-AND-OWNERSHIP.md#factory-reset) |
 
 ## Troubleshooting
 
@@ -124,4 +118,4 @@ The board now waits in the bootloader on USB and Ethernet; upload as usual.
 | Linux: the IDE cannot open the USB port | Add your user to the `dialout` group, then log in again ([Arduino help](https://support.arduino.cc/hc/en-us/articles/360016495679-Fix-port-access-on-Linux)) |
 | The Serial Monitor shows nothing at 1200 baud | 1200 baud is reserved for uploads; the sketch's `Serial` output is not shown at that rate. Pick another rate |
 | The board does not answer while the sketch runs | The board serves the network and upload requests between `loop()` calls and inside `delay()`. Let `loop()` return, or start the bootloader by hand as above |
-| Upload refused: signature or owner mismatch | The board belongs to another key. Use that key, or factory-reset the board as above |
+| Upload refused: signature or owner mismatch | The board belongs to another key (`IAPTool getowner <board>` shows which). Use that key, or [factory-reset](KEYS-AND-OWNERSHIP.md#factory-reset) the board |

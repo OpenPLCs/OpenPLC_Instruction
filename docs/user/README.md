@@ -10,10 +10,13 @@ upgrade a board already in service, is in the
 |---|---|
 | [FLASH-BOOTLOADER.md](FLASH-BOOTLOADER.md) | Building the bootloader and flashing it onto a board over ST-LINK (STM32CubeIDE or STM32CubeProgrammer) |
 | [ARDUINO-IDE.md](ARDUINO-IDE.md) | Installing the board package in Arduino IDE 2, picking the port, writing and uploading a sketch, starting the bootloader by hand |
+| [KEYS-AND-OWNERSHIP.md](KEYS-AND-OWNERSHIP.md) | Setting up a new board, where the key is, letting colleagues upload, handing a board over, a lost key, factory reset |
 
 ## Using the board in a sketch
 
-These ship with the board package; the same text is in the IDE's library folder.
+Start from the examples under *File > Examples* (libraries `OpenPLC_Ports`, `OpenPLC_KNX`,
+`OpenPLC_SDRAM`): each says what to connect and what you should see. The library READMEs
+below ship with the board package.
 
 | Document | What it covers |
 |---|---|
@@ -27,4 +30,4 @@ These ship with the board package; the same text is in the IDE's library folder.
 
 | Document | What it covers |
 |---|---|
-| [IAPTool](https://github.com/OpenPLCs/OpenPLC_IAPTool/blob/v0.2.0/README.md) | Where the upload key is found, letting colleagues upload with their own keys, revoking them, uploading without the IDE |
+| [IAPTool](https://github.com/OpenPLCs/OpenPLC_IAPTool/blob/v0.2.0/README.md) | Every IAPTool command and option, for uploads and ownership without the IDE |

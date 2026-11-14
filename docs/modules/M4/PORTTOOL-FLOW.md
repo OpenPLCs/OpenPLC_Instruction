@@ -488,11 +488,11 @@ stateDiagram-v2
 
 **怎么认出 demo**：`pt.caps` 表头和 `pt.id` 多一个 `demo=<例程版本>`，工装固件没有这个键。`porttool=` 是 demo 照着讲的协议版本，`T4-05` 要求它等于工装固件的 `PORTTOOL_VERSION`。
 
-**跑哪些项**：完整测试（功能 / 老化 / 用户级）要跑的每一项 demo 都跑得了（[决策 127](../../tables/DECISIONS.md)）；`T4-05` 拿测试项目录里用户级的每一项、按判据方案的步骤对 demo 的主机版跑一遍，查判据要的字段都在。用户级没有的项（编码器计数、KNX、复位原因、LED、SDRAM 长时间读写、RS485 引脚自检、SD 文件传递；SDRAM 长时间读写功能测试也有，[决策 139](../../tables/DECISIONS.md)）demo 没有。
+**跑哪些项**：完整测试（功能 / 老化 / 用户级）要跑的每一项 demo 都跑得了（[决策 127](../../tables/DECISIONS.md)）；`T4-05` 拿测试项目录里用户级的每一项、按判据方案的步骤对 demo 的主机版跑一遍，查判据要的字段都在。用户级没有的项（编码器计数、KNX、复位原因、LED、RS485 引脚自检、SD 文件传递）demo 没有。
 
 | 命令 | demo |
 |---|---|
-| `pt.caps` `pt.id` `pt.cal` `pt.list` `pt.start` `pt.set` `pt.stop` `pt.echo` `pt.hold` `pt.led` `pt.run` | 有，应答和拒绝的原文与工装固件一致 |
+| `pt.caps` `pt.id` `pt.cal` `pt.list` `pt.start` `pt.set` `pt.stop` `pt.echo` `pt.hold` `pt.led` `pt.run` | 有，应答和拒绝的原文与工装固件一致；例外：工装固件的拒收原因超过 95 个字符会被截断（`sdram` 的 `wait` 低于下限那句），demo 不截 |
 | `pt.run` 的目标 | `eth.link`、`sd.probe`、`sd.integrity`、`sd.speed`、`sdram.probe`、`sdram.sweep`；别的回 `ERR no such run target` |
 
 `pt.id` 没有 `rx_errors=` / `rx_dropped=`：`RS232` 不报接收错误。`pt.cal` 照工装固件回扇区 15 校准值区的原始字节。`pt.calw` demo 没有，回 `ERR unknown command`：烧校准值只在研发测试，第 6 步不烧（[决策 142](../../tables/DECISIONS.md)）。
@@ -511,7 +511,7 @@ stateDiagram-v2
 | `eth` | `mode` `port` `ip` `period` | `mode` 只有 `echo`、`mirror`（没有 `sink` / `source`，所以 `eth.xfer` 的上下行两步不跑，只跑回送，C.3.6「一项跑哪几步」）；`ip=` 同工装固件（`dhcp` 或固定地址，网关 .1）。`eth.link` 经板卡包 `OpenPLC_Net` 的 `ETH_PHY_IO_ReadReg` 读 PHY，网络此时已由 core 起好 |
 | `usb` | `mode` `period` | `mode` 只有 `echo`、`mirror`、`info`（没有 `sink` / `source`，`usb.xfer` 的上下行两步不跑） |
 | `sd` | `period` | `sd.probe` 经 `OpenPLC_SD` 的 `Sd2Card` 识别卡，没有 `err=`：板卡包不给 SDMMC 的错误码。`sd.integrity` / `sd.speed` 用 `SD.begin()` 挂卡、FatFs 读写；`SD.begin()` 不成功时 `fresult=-1`（板卡包不给挂载的 FRESULT） |
-| `sdram` | — | 只有 `pt.run` 一行（`kind=run`）：`sdram.probe`、`sdram.sweep`，经 `OpenPLC_SDRAM`；没有保持会话（研发、功能测试才有，跑在工装固件上）。`ready=` 是 `SDRAM.begin()` 的结果，它自带一遍读回，所以数据线、地址线坏时多半报 `ready=0`，不是 `ready=1 databus=0` |
+| `sdram` | — | 和工装固件一样是保持会话（`kind=session`，`wait`、`period`，帧字段和拒收原文相同），另带 `pt.run` 的 `sdram.probe`、`sdram.sweep`，都经 `OpenPLC_SDRAM`：板卡包自己配 SDRAM 刷新，保持会话测的就是它（[决策 184](../../tables/DECISIONS.md)）。`ready=` 是 `SDRAM.begin()` 的结果，它自带一遍读回，所以数据线、地址线坏时多半报 `ready=0`，不是 `ready=1 databus=0` |
 | `knx` | 不在 demo 里 | 只在研发测试 |
 
 ---
@@ -1036,7 +1036,7 @@ flowchart LR
 | | 功能测试（第 2 步） | 老化测试（第 4 步） | 用户级功能测试（第 6 步） |
 |---|---|---|---|
 | 板子上跑什么 | 工装固件 | 工装固件 | **FixtureDemo**：第 6 步先烧 bootloader、上传 demo，测完恢复出厂（C.3.5）。demo 只用板卡包 API，测的是用户 app 走的路径（A.9） |
-| 有哪些项 | 目录里 `stages` 含 `func` 的项 | 功能那些（SDRAM 读写测试除外，[决策 139](../../tables/DECISIONS.md)只给了功能），加 AO 带负载 | 和功能一样（[决策 127](../../tables/DECISIONS.md)），SDRAM 读写测试除外：demo 没有（A.9）。demo 每一项都要跑得了，demo 怎么做见 A.9 |
+| 有哪些项 | 目录里 `stages` 含 `func` 的项 | 功能那些（SDRAM 读写测试除外，[决策 139](../../tables/DECISIONS.md)只给了功能），加 AO 带负载 | 和功能一样（[决策 127](../../tables/DECISIONS.md)），SDRAM 读写测试也跑（[决策 184](../../tables/DECISIONS.md)）。demo 每一项都要跑得了，demo 怎么做见 A.9 |
 | 时长 | 只跑单次，没有时长下拉；存过别的时长的旧配置读成单次（[决策 139](../../tables/DECISIONS.md)） | 1 / 2 / 4 / 8 小时，默认 4 小时 | 单次 / 10 / 30 分钟 / 1 小时，默认单次 |
 | 单次怎么跑 | 勾的项按目录顺序各跑一遍，第一次不过就停 | 老化没有单次 | 同功能 |
 | 选了时长怎么跑 | 功能没有时长（[决策 139](../../tables/DECISIONS.md)）；老化、用户级：先挨个跑「只测一次」的项和 DO 带负载；其余项同时跑满时长、每一轮都判，第一次不过全停。继电器和 AO 带负载不先跑，和其余项一起开始：继电器按时长跑完总次数、按标准机 DI 数到的实际次数判（[决策 130](../../tables/DECISIONS.md)），AO 带负载开着电流到时长结束、不问人。DO 带负载和继电器在同一条链上（下面「DO、继电器一条链」），不能同时跑：DO 先跑一遍，是决策 102「同时满载」的例外 | 同 | 同 |
@@ -1056,7 +1056,7 @@ flowchart LR
 | SD 读写 `sd.rw` | 写 1 MB 测试文件读回逐字节比对；写卡速率、读卡速率分开显示（`sd.speed` 的 `write_bps` / `read_bps`，单位字节/秒，决策 151 第 1 条） | 无 | 无 | `sd-integrity`：挂上、一致、无错；`sd-speed`：挂上、无错，速度只记录 | 三种都有；选了时长一轮轮重跑 |
 | SDRAM 总线检查 `sdram.probe` | 起内存控制器，查数据线、地址线断没断、短没短 | 无 | 无 | `sdram-buses`：64 MB、就绪、数据线和地址线都好 | 三种都有，只测一次 |
 | SDRAM 全片扫描 `sdram.sweep` | 64 MB 四种图案各写一遍读回比对；显示写速率、读速率（MB/s，按 `patterns × words_each × 4` 字节除以 `write_ms` / `verify_ms` 算，执行器加在结果里，字段 `write_mbps` / `read_mbps`） | 无 | 无 | `sdram-stress`：就绪、4 种图案、0 处不符；速率只记录 | 三种都有；研发里只测一次、不随时长重跑（目录 `once_rd`，决策 151 第 3 条）；老化 / 用户级选了时长一轮轮重跑（功能只跑单次，[决策 139](../../tables/DECISIONS.md)） |
-| SDRAM 长时间读写 `sdram.hold` | `sdram` 保持会话：随机地址写、放 `wait` 毫秒、读回核对，一轮接一轮；卡上显示轮数、查过的、失败的、第一个出错的地址 | 无 | 可改放多久（`wait`，≥ 1000 ms：不刷新的单元也能保持几十毫秒，更短的话刷新没开也会测过；固件拒收、不夹到下限，`$BOOT/TestCase/porttool/porttool_sdram.c:33-34`、`:76-83`）、帧间隔（`period`） | `sdram-refresh`：就绪、轮数 ≥ 1、失败 0。帧数不够跑完一轮时执行器按 `wait` / `period` 补足（`ptlib` 的 `holdFrames`） | 研发、功能（[决策 139](../../tables/DECISIONS.md)）；功能里单次跑一整轮（写、放 `wait`、读回）就判。研发 SDRAM 的「可重复」组只有它，选了时长时会话一直开着、每帧都判 |
+| SDRAM 长时间读写 `sdram.hold` | `sdram` 保持会话：随机地址写、放 `wait` 毫秒、读回核对，一轮接一轮；卡上显示轮数、查过的、失败的、第一个出错的地址 | 无 | 可改放多久（`wait`，≥ 1000 ms：不刷新的单元也能保持几十毫秒，更短的话刷新没开也会测过；固件拒收、不夹到下限，`$BOOT/TestCase/porttool/porttool_sdram.c:33-34`、`:76-83`）、帧间隔（`period`） | `sdram-refresh`：就绪、轮数 ≥ 1、失败 0。帧数不够跑完一轮时执行器按 `wait` / `period` 补足（`ptlib` 的 `holdFrames`） | 研发、功能（[决策 139](../../tables/DECISIONS.md)）、用户级；功能、用户级里单次跑一整轮（写、放 `wait`、读回）就判（用户级见[决策 184](../../tables/DECISIONS.md)）。研发 SDRAM 的「可重复」组只有它，选了时长时会话一直开着、每帧都判 |
 | DI 逐路电平 `din.level` | 被测板读 DI1–8 每路的 0 / 1：逐路只给这一路 24 V，只有这一路读到高 | 人工 | 不填数：照提示逐路把 24 V 接到这一路；可只走几路（`ch`） | 每路按判据步 `digital-in` … `digital-in-8`（这一路 = 1，其余 = 0），连续 3 帧对上算过 | 三种都有；工装测试里由标准机 DO 逐路给（[决策 129](../../tables/DECISIONS.md)） |
 | AI 读数 `ain.read1` / `read2` | 每个测试点：人把信号源调到这一点，板子读数按板上 k、b 换算后和它比 | 人工 | 每个点信号源给的值；测试点 3–6 个可改 | 每点偏差 ±1 % 满量程（`ai1-read` / `ai2-read`） | 三种都有；工装测试里由「标准机设置」里接到这一路的标准机 AO 给（两头同档才测，[决策 134](../../tables/DECISIONS.md)）；没接的勾着不让开始（[决策 129](../../tables/DECISIONS.md)） |
 | AO 输出 `aout.out1` / `out2` | 每个测试点：板子按板上 k、b 输出，人量 | 人工 | 每个点表上的读数；测试点可改 | 每点偏差 ±1 % 满量程（`ao1-out` / `ao2-out`） | 三种都有；工装测试里由标准机 AI1 / AI2 读（两头同档才测，[决策 134](../../tables/DECISIONS.md)） |
@@ -1442,7 +1442,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | 标准机「不用」 | 同一文件的 `ref_unused`，连接区的「标准机」选「不用」时写它。没有本板自回环：对端是标准机的项能换成上位机的（CAN 对发）就换，其余（AI / AO / DI / DO / 继电器）在工装测试里勾着不让开始，卡片上写明 | [决策 135](../../tables/DECISIONS.md)「标准机「不用」」；取代原来依赖标准机的项换成本板自回环的做法 |
 | 第 2、4 步 | 工装完整测试按保存的配置跑（`Server.configStep`）：单次 = 勾选的项挨个跑一遍；选了时长 = 「只测一次」的项先挨个跑，其余项再同时跑满时长（工装测试不问人，[决策 129](../../tables/DECISIONS.md)）；继电器和 AO 带负载归后一段（决策 123、C.3.6「AO 带负载输出」）。两步都是第一次不过就停 | 时长内各端口同时满载 |
 | 不在选项里的时长 | `POST /api/stagecfg` 拒存（「一直」也在内） | 一直跑的步永远等不到通过，后面的步永远跑不到 |
-| 第 6 步 | 测的部分用 `Server.configStep(ptitems.User)`，作为 `ptstages.Stage6.Test` 接进第 6 步（`full.go` 的 `userLevelStep`；CDC 口用 `ptecho.FindCDC`）。挑项前现发一次 `pt.caps`：这时板子上已是 demo，不能按开始前工装固件报的端口挑 | 同一个执行器 |
+| 第 6 步 | 测的部分用 `Server.configStep(ptitems.User)`，作为 `ptstages.Stage6.Test` 接进第 6 步（`full.go` 的 `userLevelStep`；CDC 口用 `ptecho.FindCDC`）。挑项前现发 `pt.caps`：这时板子上已是 demo，不能按开始前工装固件报的端口挑。IAPTool 返回后 demo 约 2 s 才起来，没应答就重发，10 s 内都没应答才判 ERROR | 同一个执行器 |
 
 | 请求 | 做什么 | 回什么 |
 |---|---|---|

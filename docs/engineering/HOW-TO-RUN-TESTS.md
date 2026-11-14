@@ -180,7 +180,7 @@ T1-07–T1-10 和 T1-11 都要求设备处于 bootloader 且以太网已起。�
 | `host/fakeboard/` | `python host/fakeboard/run_lifecycle.py [--only ID] [--keep]`，selfcheck 的 `T1-22` `T1-38` `T2-05` `T2-19` 四步就是它 | **T1-22 T1-38 T2-05 T2-09 T2-19 T2-20 T2-36** 在 bootloader 替身上：掉电落在擦写窗口、比版本、恢复出厂（`--gesture factory`）及其后果、连续撤销和重复撤销。判的是真 bootloader 代码的决定；按键、真 flash 擦写窗口、CDC 那支仍要真板子 |
 | `host/fakeboard/` | `python host/fakeboard/run_protocol.py [--only ID] [--keep]`，selfcheck 的 `T1-01` `T1-13` `T1-28` `T1-30` `T1-32` `T2-01` `T2-11` `T2-15` 八步就是它，每步跑一组 | **T1-01 T1-02 T1-05–T1-14 T1-23 T1-24 T1-26 T1-28 T1-30 T1-32 T2-01 T2-03 T2-11 T2-12 T2-14–T2-17 T2-25 T2-26** 在 bootloader 替身上：现成的 Go 用例（`TestCase`）和 IAPTool 驱动的归属、撤销用例。判的是真 IAP 代码的决定；真 lwIP / PHY 时序、真 flash 擦写仍要真板子 |
 | `$TOOL/tests/crypto_ref/` | 在 `$TOOL` 下 `python tests/crypto_ref/run_checks.py [--rounds N]` | SHA-256 构造对 hashlib（309 向量）；IAPTool 真实签名交给一份独立的纯算术 P-256 验证器。对照方法见 `$TOOL/tests/crypto_ref/CROSS-CHECK.md`（贴着代码放） |
-| `$CORE_REPO/tests/sd_lib/` | `$CORE_REPO/tests` 下 `ctest --preset local`，需要 gcc 和 CMake | **T3-12** `OpenPLC_SD` 的文件操作：真 FatFs 跑在内存盘上，格式化后写、追加、读回、删、建目录、列目录 |
+| `$CORE_REPO/tests/sd_lib/` | `$CORE_REPO/tests` 下 `ctest --preset local`，需要 gcc 和 CMake | **T3-12** `OpenPLC_SD` 的文件操作：真 FatFs 跑在两种内存盘上（MBR + FAT32、GPT + exFAT），格式化后写、追加、读回、删、建目录、列目录 |
 | `$CORE_REPO/tests/knx_role/` | `$CORE_REPO/tests` 下 `ctest --preset local`，需要 gcc 和 CMake | **T3-22** KNX 换角色后的开机恢复：真 `knx/memory.cpp` `device_object.cpp` 读内存里的假数据区，别的角色或不带角色的头部一个字节都不恢复，同角色照常恢复 |
 | `$CORE_REPO/tests/variant_check/` | `python tests/variant_check/build.py`，需要 arduino-cli（环境变量 `ARDUINO_CLI` / `ARDUINO_CLI_CONFIG`） | **P4** Arduino 变体头的编译期断言。目前两个：`m4_fmc_pins`（FMC 保留脚表 39 个自洽）、`uart_routing`（printf 控制台在 USART3/PC10，扩展口留着 UART4/PH13-14）。**编不过就是变体头坏了，不是 sketch 坏了** |
 | `$CORE_REPO/tests/examples_build/` | `python tests/examples_build/build.py [--only LIB]`，需要 arduino-cli | **P5** 编译板卡包里**每一个 example**（只有自有库带例程，决策 181）。⚠️ **约 45 分钟，故意不进 selfcheck** —— 见下 |
@@ -368,13 +368,79 @@ python tools/upload_and_watch.py --bin <build>/RAM_Speed.ino.bin --key <板子�
 |---|---|
 | sketch 调过 `Serial4.begin()` 之后，往端子发 5 个字节，`RS232` **全部回显** | 板子在线、RS232 适配器接在端子上（`RS232_PORT`）、`$ARDUINO_CLI` 已配 |
 
-## 板级端口 · RS485
+## 板级端口和部件：必要用例和现在怎么测
 
-由工装测：链路回环是 `rs485` 会话，PD4 / PD5 引脚回读是 `pt.run rs485.pins`，见 [PORTTOOL-FLOW.md B.8](../modules/M4/PORTTOOL-FLOW.md)。原来 `TestCase/RS485` 的独立测试已删（[决策 87](../tables/DECISIONS.md)）。
+每个端口、板上部件该测什么（出处是硬件事实或需求），以及三套代码各自怎么测。判据只在各测试项和用例里，这里只写编号；为什么这么分见 [TEST-DESIGN.md](TEST-DESIGN.md)「三套代码，同一批用例」。
+
+| 列 | 是什么 |
+|---|---|
+| 工装固件 | PortTool 研发 / 功能 / 老化测试的测试项（[PORTTOOL-FLOW.md](../modules/M4/PORTTOOL-FLOW.md) C.3.6）；没标的是三种测试都有 |
+| `FixtureDemo` | 工装完整测试第 6 步（用户级），板卡包编的；和工装固件逐项比对是 `T3-27` |
+| 例程 | IDE 里的示例，上板由 `T3-06`（`$TEST/tools/run_examples.py`）测 |
+| 其他用例 | 主机测试（板卡包的库在电脑上编、跑，`$CORE_REPO/tests`）和专用的上板用例 |
+
+格子里的写法：测试项、例程名或用例编号 = 在测；**由 demo 覆盖** = 例程走的是同一段板卡包代码，demo 测过就不重测；**无此功能** = 这套代码不做这件事；— = 这一项由同一行别的列测；人工 = 要人看或量。只记录不判的数（速率）不列。
+
+### 通信
+
+| 端口 | 必要用例 | 出处 | 工装固件 | `FixtureDemo` | 例程 | 其他用例 |
+|---|---|---|---|---|---|---|
+| USB | 枚举成板子的串口，能打开 | `R3-25` | `usb.info` | `usb.info` | 经 USB 上传即验证 | — |
+| | 双向大流量收发：不丢、不错，程序读得慢时电脑等 | `R3-23` | `usb.xfer` | `usb.xfer` | 由 demo 覆盖；`USB_Serial` 只测它自己的按行回显 | — |
+| | 给运行中的程序经 USB 上传 | [决策 176](../tables/DECISIONS.md) | 无此功能（ST-Link 烧） | 第 6 步经 USB 上传 demo | 每个例程都经 USB 上传 | — |
+| | 系统日志走这个口，sketch 里能关 | `R3-22`、`R3-23` | 无此功能 | 写了关：开着口没有 `[sys]` 行，手工 | — | `T3-26`（专用 sketch） |
+| 以太网 | PHY 连上，100 Mbit/s 全双工 | 硬件 | `eth.link` | `eth.link` | 由 demo 覆盖 | — |
+| | 拿到 DHCP 地址，能被电脑发现 | `R1-03` | 无此功能 | — | `Ethernet_IP` | — |
+| | 双向大流量收发，不丢 | 硬件 | `eth.xfer` | `eth.xfer` | 由 demo 覆盖 | — |
+| | 经网口给运行中的程序上传 | `R1-03` | 无此功能 | — | `run_examples.py --upload ether` | — |
+| RS232 | `RS232.begin()` 之前端子不开，之后能收发 | `R3-23`、`R1-43` | 无此功能 | — | `RS232_Echo` | 手工（`R1-43`） |
+| | 连续收发不丢 | 硬件 | `rs232.peer`（它也是控制口） | `rs232.peer` | `RS232_Echo` | — |
+| RS485 | 连续收发不丢、不乱 | 硬件 | `rs485.peer` | `rs485.peer` | `RS485_Echo` | — |
+| | PD4 / PD5 引脚回读 | 硬件 | `rs485.pins`（研发） | 无此功能 | — | 原来 `TestCase/RS485` 的独立测试已删（[决策 87](../tables/DECISIONS.md)） |
+| CAN | 和对端双向收发，没有总线错误 | 硬件 | `can.peer` | `can.peer` | `CAN_Counter` | — |
+| KNX | 总线上拉、收发帧（数据链路层） | `R3-12`、`R3-15` | `knx.*`（研发） | 无此功能 | `KNX_BusMonitor`（`T3-13`） | `T3-09` |
+| | ETS 下载后和其他 KNX 设备联动 | `R3-16` | 无此功能 | 无此功能 | `KNX_Switch`、`KNX_Inputs`、`KNX_Analog`、`KNX_Temperature`：`T3-14`–`T3-18`、`T3-20` | — |
+| | IP 路由器：TP 总线和网口的 KNXnet/IP 之间转发 | `R3-17` | 无此功能 | 无此功能 | `KNX_IPRouter`：`T3-19`，**还没上板跑过** | — |
+
+### 存储
+
+| 部件 | 必要用例 | 出处 | 工装固件 | `FixtureDemo` | 例程 | 其他用例 |
+|---|---|---|---|---|---|---|
+| SD 卡 | 插卡被认出，卡就绪 | 硬件 | `sd.probe` | `sd.probe` | 由 demo 覆盖 | — |
+| | 认出 FAT32 / exFAT，MBR / GPT 分区 | `R3-14`、[决策 169](../tables/DECISIONS.md) | `sd.probe` | `sd.probe` | 由 demo 覆盖 | `T3-12`（两种内存盘：MBR + FAT32、GPT + exFAT） |
+| | 写文件读回一致 | `R3-14` | `sd.rw` | `sd.rw` | `SD_ReadWrite` | `T3-12` |
+| | `SD` / `File` 接口：追加、`seek`、删除、目录 | `R3-14` | 无此功能（直接用 FatFs） | 无此功能（同左） | — | `T3-12`（和硬件无关） |
+| | 经串口收一个文件写进卡 | `R3-13` | 无此功能 | 无此功能 | `SD_FileReceive` | `T3-10` |
+| SDRAM | 数据线、地址线不断不短 | 硬件 | `sdram.probe` | `sdram.probe` | 由 demo 覆盖 | — |
+| | 全片读写不出错 | 硬件、`R3-03` | `sdram.sweep` | `sdram.sweep` | `SDRAM_Basic`、`SDRAM_DataLogger` | `T3-02`（封装） |
+| | 长时间放着数据不丢（刷新） | 硬件、[决策 184](../tables/DECISIONS.md) | `sdram.hold`（研发、功能） | `sdram.hold`（板卡包自己配刷新） | 由 demo 覆盖 | — |
+
+### I/O（自动测都要标准机）
+
+| 部件 | 必要用例 | 出处 | 工装固件 | `FixtureDemo` | 例程 | 其他用例 |
+|---|---|---|---|---|---|---|
+| DI | 逐路给 24 V，只有这一路读到 1 | 硬件 | `din.level` | `din.level` | `DI_Inputs`，人工 | — |
+| | 编码器计数 | 硬件 | `din.quad`（研发） | 无此功能 | — | — |
+| DO | 逐路带载，压降不超上限 | 硬件 | `dout.load`；上限 `drop_max` 默认 1 V **还没用良品实测定** | `dout.load` | `DO_Outputs`，人工 | — |
+| | PWM 占空比、频率 | 硬件 | `dout.square`（研发，人工） | 无此功能：PWM 只在工装和例程里测，不和工装比对（2026-11-14 定） | `DO_PWM`，人工 | — |
+| 继电器 | 逐路吸合、断开到设定次数 | 硬件 | `relay.cycle` | `relay.cycle` | `Relays`，人工 | — |
+| AI | 各测试点读数误差 ±1 % 满量程 | 硬件、`R3-10` | `ain.read1` / `read2` | `ain.read1` / `read2` | `AI_Inputs`，人工 | `T3-07`；`T3-21`（校准值在真板上生效） |
+| AO | 各测试点输出误差 ±1 % 满量程 | 硬件、`R3-10` | `aout.out1` / `out2`；带负载 `aout.load`（研发、老化） | `aout.out1` / `out2` | `AO_Outputs`，人工 | `T3-07`、`T3-25` |
+
+### 板上其他
+
+| 部件 | 必要用例 | 出处 | 工装固件 | `FixtureDemo` | 例程 | 其他用例 |
+|---|---|---|---|---|---|---|
+| 温度 | 两路 0–60 °C，基准 2.4–2.6 V | 硬件 | `temp.read` | `temp.read`；和工装之间的容差 **还没定** | `BoardTemperature` | — |
+| LED | 系统灯能闪；选端口时 LED3 快闪 | 硬件、`R3-25`、`R1-44` | `led.blink`（研发，人工） | 无此功能 | `SystemLED`，人工 | LED3 手工 |
+| RTC 晶振 | 频率偏差、起振余量 | 硬件 | `rtc.lsefreq`、`rtc.lsemargin`（研发） | 无此功能 | — | — |
+| 复位原因 | 读得出这次是怎么复位的 | `R3-11` | `reset.cause`（研发） | 无此功能 | — | `T3-08` |
+
+**还缺的**：标准机那几项（DI、DO、继电器、AI、AO）工装和 demo 都有测试项，还没在板子上比过（`T3-27`）；DO 压降上限、温度容差待实测；`AI_Inputs` 刚加进 `run_examples.py`，还没上板跑；`T3-19` KNX IP 路由器没上板跑过。
 
 ## T3-27 · 板卡包下的端口和工装固件下一致，怎么跑
 
-需求 `R3-26`。同一块板、同一套接线，PortTool 的工装完整测试先在工装固件上跑第 2 步（功能测试），再在板卡包例程 `FixtureDemo` 上跑第 6 步（用户级功能测试），两步测同样的项（[决策 127](../tables/DECISIONS.md)）；比对脚本读这一份记录，逐项比两步的结论和读数。理由：两步在同一次运行里，接线、校准值、标准机都是同一套，差出来的只能是两套固件。
+需求 `R3-26`。各端口哪些项在这里比、哪些由别的用例测，见上面「板级端口和部件：必要用例和现在怎么测」。同一块板、同一套接线，PortTool 的工装完整测试先在工装固件上跑第 2 步（功能测试），再在板卡包例程 `FixtureDemo` 上跑第 6 步（用户级功能测试），两步测同样的项（[决策 127](../tables/DECISIONS.md)）；比对脚本读这一份记录，逐项比两步的结论和读数。理由：两步在同一次运行里，接线、校准值、标准机都是同一套，差出来的只能是两套固件。
 
 **前提**：板子扇区 15 有 AI1、AI2、AO1、AO2 的校准值（完整测试开始前的校准门槛要它）；标准机接好、在「标准机设置」里登记过、自己也校准过；交付包 `stage6/` 里 bootloader、IAPTool、demo 三个文件齐；ST-Link 和板子的 USB 口接着（第 6 步烧 bootloader、上传 demo 要用）。
 
@@ -382,7 +448,7 @@ python tools/upload_and_watch.py --bin <build>/RAM_Speed.ino.bin --key <板子�
 |---|---|
 | 1 | 交付包里双击 `start.cmd`（Linux 上 `bash start.sh`），选「烧固件进板子」，把工装固件烧进去 |
 | 2 | 打开面板：第一步连控制口；第二步连被测板的 USB、网口、RS485 / CAN 转换器、标准机、ST-Link |
-| 3 | 第三步选「工装完整测试」。功能测试和用户级功能测试两份配置勾同样的端口、同样的项、同样的参数和 AI / AO 测试点（两份的默认本来一样，没改过就不用动）；用户级功能测试的时间选「单次」 |
+| 3 | 第三步选「工装完整测试」。功能测试和用户级功能测试两份配置勾同样的端口、同样的项、同样的参数和 AI / AO 测试点（两份的默认本来一样，没改过就不用动）；用户级功能测试的时间选「单次」。SDRAM 长时间读写两份都默认不勾，要比它就两份都勾上 |
 | 4 | 第 ② 层只勾「功能测试」和「用户级功能测试」，点「配置完成，开始测试」。问「从第 N 步继续」还是「从头」时选「从头」：两步要在同一份记录里 |
 | 5 | 等它跑完：第 2 步测完，第 6 步烧 bootloader、上传 demo、测、恢复出厂。记录写在 PortTool 旁边的 `records/<UID>/<开始时间>.json`，右侧「结果」页写着路径 |
 | 6 | 在 `$TEST` 根目录跑 `python tools/compare_fixture_and_demo_readings.py <那份记录>` |

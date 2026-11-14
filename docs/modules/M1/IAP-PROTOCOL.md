@@ -30,7 +30,7 @@ app 在 core 的 [`udp_server.c`](../../../../OpenPLC_Arduino_PKG/libraries/Open
 
 | 项 | 约定 |
 |---|---|
-| 进入 | 主机设 1200 波特（`CDC_SET_LINE_CODING`），板子不复位 |
+| 进入 | 主机设 1200 波特（`CDC_SET_LINE_CODING`），板子不复位。IAPTool 每次打开端口都先设别的波特率再设 1200：Linux 重开端口时沿用上次的波特率，不再发这条请求 |
 | 命令 | 一行一条，以 `\n` 或 `\r` 结尾，整行精确匹配；和 UDP 同一套：发现（回五段身份串）、四条只读查询、`openplc_server_reboot_challenge`、`openplc_server_reboot <cert> <sig>`。不认 `openplc_log`：日志退出模式后照常从这个口吐出。其他行不回，超过 511 字节的行丢弃 |
 | 回答 | 和 UDP 同一段文本，后面加 `\n` |
 | 限流 | 和网口共用同一份每秒预算 |

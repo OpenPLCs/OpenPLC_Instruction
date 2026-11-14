@@ -30,7 +30,7 @@ IDE 自带的 CLI 在 `$IDE/resources/app/lib/backend/resources/arduino-cli`（W
 | 菜单（FQBN 键） | 选项 | 用途 |
 |---|---|---|
 | Board part number（`pnum`） | `PLC_H743` | 唯一一项；变体头、flash 大小都挂在它下面 |
-| USB support（`usb`） | `CDCgen`（默认）：`Serial` 是 USB 口；`CDC`：`Serial` 落到 UART4 | `CDC` 只给 Renode 用（Renode 不模拟 USB） |
+| USB support（`usb`） | `CDCgen`，显示为「USB (Serial)」：`Serial` 是 USB 口 | 唯一一项。Renode 不模拟 USB，编译时用 `--build-property` 加 `-DDISABLE_GENERIC_SERIALUSB` 让 `Serial` 落到 UART4（[决策 185](../tables/DECISIONS.md)） |
 | Force flash（`forceflash`） | `no`（默认）、`yes` | 一次性允许烧低版本 |
 
 删掉的，和为什么：

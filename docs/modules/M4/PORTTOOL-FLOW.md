@@ -480,7 +480,7 @@ stateDiagram-v2
 
 ## A.9 第 6 步的 demo 讲同一套协议
 
-第 6 步板子上跑的不是工装固件，是板卡包例程 `FixtureDemo`（`$CORE_REPO/libraries/OpenPLC_Ports/examples/FixtureDemo/`）。它只用板卡包 API，所以测到的是用户 app 走的路径（[决策 93](../../tables/DECISIONS.md)）。协议在它里面另有一份实现，是一条跨仓镜像（[ARCHITECTURE.md](../../repo/ARCHITECTURE.md)「跨仓镜像的代码」第 15 条），由 `T4-05` 对两边各跑一遍同一份测试兜住。
+第 6 步板子上跑的不是工装固件，是 `FixtureDemo`（`$PORTTOOL/src/fixturedemo/FixtureDemo/`，用装好的板卡包编，不在客户的例程里，[决策 185](../../tables/DECISIONS.md)）。它只用板卡包 API，所以测到的是用户 app 走的路径（[决策 93](../../tables/DECISIONS.md)）。协议在它里面另有一份实现，是一条跨仓镜像（[ARCHITECTURE.md](../../repo/ARCHITECTURE.md)「跨仓镜像的代码」第 15 条），由 `T4-05` 对两边各跑一遍同一份测试兜住。
 
 同一块板上第 2 步（工装固件）和第 6 步（demo）的读数是否一致，由 `T3-27` 比对，跑法见 [HOW-TO-RUN-TESTS.md](../../engineering/HOW-TO-RUN-TESTS.md)「T3-27」。
 
@@ -963,7 +963,7 @@ flowchart LR
 |---|---|
 | bootloader 镜像 | exe 旁边的 `stage6/bootloader.hex`。放子文件夹：`start.cmd` 烧工装固件时认「文件夹里唯一的 `.hex`」 |
 | IAPTool | exe 旁边的 `stage6/IAPTool.exe`（Linux / macOS 是 `IAPTool`） |
-| demo | exe 旁边的 `stage6/FixtureDemo.ino.bin`（Arduino 编出来的文件名，不改名），源码是例程 `FixtureDemo`（[A.9](#a9-第-6-步的-demo-讲同一套协议)）；`LocateUserLevelFiles` 和另两个一起找。交付包从板卡包编出它放进来（C.4「交付包」） |
+| demo | exe 旁边的 `stage6/FixtureDemo.ino.bin`（Arduino 编出来的文件名，不改名），源码是 `FixtureDemo`（[A.9](#a9-第-6-步的-demo-讲同一套协议)）；`LocateUserLevelFiles` 和另两个一起找。交付包从板卡包编出它放进来（C.4「交付包」） |
 | 上传和认领 | `IAPTool cdc <demo.bin> <板子的 USB CDC 口>`：Arduino IDE 选中 USB 串口、不勾 Force flash 时的同一条命令（`$CORE_REPO/boards.txt` 的 `upload.tool.serial=cdctransfer`，`$CORE_REPO/platform.txt` 的 `tools.cdctransfer.upload.pattern`）。板子刚烧 bootloader、没有根，这次上传就认领（决策 72）。CDC 口由调用方找，烧完 bootloader 后最多等 10 s 让它出现 |
 | 产线根 | 产线电脑上 IAPTool 的本机私钥，没有就由 IAPTool 生成（[M2-ownership.md](../M2-ownership.md)「私钥放在哪」）。PortTool 不读不写它；板子恢复出厂后不带这个根 |
 | 缺了哪样 | 第 6 步不碰板子，记 `ERROR` 并写明缺哪个文件 |
@@ -1498,7 +1498,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 | `stage6/bootloader.hex` | `$BOOT/Debug/OpenPLC_BootLoader.hex`；同目录的 `.elf` 带工装命令表（`pt.caps`）就拒打包 | 不打包 |
 | `stage6/IAPTool.exe` | `$TOOL/Output/windows/IAPTool.exe`（`$TOOL` 的 `build.py` 编出、也是装进板卡包的那份） | 不打包 |
 | `stage6/IAPTool` | Linux 版：`$TOOL/Output/linux/IAPTool` | 不打包 |
-| `stage6/FixtureDemo.ino.bin` | 打包时用 `arduino-cli` 从板卡包例程 `FixtureDemo` 现编（`$PORTTOOL` 的 `tools/local.json` 的 arduino-cli 和它的配置，FQBN 从 `$CORE_REPO/tests/_common.py` 读，同 `$CORE_REPO/tests/examples_build/build.py`） | 不打包 |
+| `stage6/FixtureDemo.ino.bin` | 打包时用 `arduino-cli` 按装好的板卡包现编 `$PORTTOOL/src/fixturedemo/FixtureDemo/`（`$PORTTOOL` 的 `tools/local.json` 的 arduino-cli 和它的配置，FQBN 从 `$CORE_REPO/tests/_common.py` 读，同 `$CORE_REPO/tests/examples_build/build.py`） | 不打包 |
 
 **版本号**（[决策 120](../../tables/DECISIONS.md)，改决策 110、112）：上位机（`$PORTTOOL/src/cmd/porttool/main.go` 的 `version`，面板顶上写「上位机 X」）和工装固件（`$BOOT/TestCase/porttool/porttool.c` 的 `PORTTOOL_VERSION`，`start.sh fixture` 记进 `Output/fixture/VERSION`、镜像按它命名）**前两位一致**，表示一套；第三位各自修小问题时各自升；两边能力有变时一起升次版本，给研发测试加命令、加项这类改进只升第三位。连上板子后前两位不一致，面板顶上提醒「上位机和固件不是一套」。打包时 `start.sh deliver` 查四件：要打进去的 Windows、Linux 两个 PortTool 里都有 `main.go` 当前的版本号（`deliver` 只打包不重编，拦下忘了先 `start.sh tool` 的旧 exe，2026-11-02 出过一次）；两边前两位一致；镜像 `.bin` 的 SHA-256 变了而固件版本号和 `$PORTTOOL/tools/shipped_fixture.json` 里记的一样，拒绝；上位机源码（`src/` 下除 `*_test.go`、`src/plans/`、`src/simboard/c/` 以外的文件，含 `web/`，加 `go.mod` / `go.sum`，按路径排序算 SHA-256）变了而上位机版本号一样，拒绝。后两条不过时，菜单里让人选「内部测试照打」或「不打」，命令行加 `--internal` 照打；内部测试的包不更新 `shipped_fixture.json`，正式发版仍要升版本号（用户 2026-10-20）。拦下时列出要改版本号的每一处（`文件:行`），固件那边含 `FixtureDemo` 的 `FX_PROTOCOL_VERSION`（板卡包 live 和 repo 两份），是在这几个位置里搜当前版本号得出的，不是写死的清单（用户 2026-10-20）。T4-01 的测试不写死版本号，从 `caps_golden.txt` 读；黄金文件由 `TestCase/test.sh t4-01` 按 `porttool.c` 重写，不用手改。比 `.bin` 不比固件源码：同一份源码两次编出来一样（2026-10-13 核过）；比 Go 源码不比 exe：Go 编出的 exe 默认带构建路径，不能逐字节复现。
 

@@ -80,7 +80,7 @@ has to be uploaded again afterwards.
 
 2. *Tools > Board > Boards Manager...*, search for `OpenPLC`, pick the newest version of
    **OpenPLC_Alpha H743IIKx** and click *Install*. An older version is upgraded in place.
-   If you installed 0.2.0 before 2026-11-14, click *Remove* and then *Install* once: 0.2.0 was
+   If you installed 0.2.0 before 2026-11-15, click *Remove* and then *Install* once: 0.2.0 was
    republished with the same version number, so the IDE does not offer it as an update.
 
    ![Boards Manager search](docs/user/img/boards-manager-search.png)

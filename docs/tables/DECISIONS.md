@@ -2954,6 +2954,7 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 | 做法 | 板卡包、bootloader、IAPTool 的 tag `0.2.0` 移到 `v0.2.0` 分支最新提交；板卡包 release 附件换成新打的包，索引里 0.2.0 的校验和与大小跟着改；版本号不变 |
 | STM32Tools | 不重发：`IAPTool` 只改了 README，二进制不变 |
 | 2026-11-14 再重发一次 | 同样做法，`IAPTool` 的 tag 一起移；这次 STM32Tools 也重发（`IAPTool` 二进制改了：Linux 上经 USB 给运行中的程序上传），它的 tag 和 release 附件换新，索引里 STM32Tools 0.2.0 的校验和与大小跟着改。带上板卡包 USB 收队列满时不丢数据（`R3-23`） |
+| 2026-11-14 第三次 | 四个仓（板卡包、bootloader、IAPTool、STM32Tools）的 tag 都移，附件和索引都换：带上决策 185 的提示和菜单修正 |
 | 已装 0.2.0 的用户 | 板卡管理器不提示更新，要拿到修正得卸掉再装 |
 
 **理由**：用户 2026-11-13：「现在可以重新发0.2.0」。
@@ -2973,3 +2974,17 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 
 **什么情况下重开**：板卡包改成不自己配 SDRAM（沿用 bootloader 的配置）时。
 
+
+## 185 · 客户看得到的提示和菜单只留对的、有用的
+
+2026-11-14 定。
+
+| 事 | 定案 |
+|---|---|
+| *Tools > USB support* | 只留一项「USB (Serial)」（FQBN 键仍是 `usb=CDCgen`，已有的 FQBN 不变）；`Serial` 落到 UART4 的那项删掉，Renode 编译时改用 `--build-property` 传同样的宏 |
+| `FixtureDemo` | 从板卡包的例程挪到 `$PORTTOOL/src/fixturedemo/FixtureDemo/`，客户的 *File > Examples* 里不再有它；仍然只用板卡包 API、用装好的板卡包编（决策 93、127 不变） |
+| bootloader 日志 | 删掉对客户没用、会把开机缓存挤满的行，改正说错的行；随 0.2.0 原地重发，版本号不变。已烧 0.2.0 的板子照常用，要新日志用 ST-Link 重烧 |
+
+**理由**：用户 2026-11-14：「给客户的提示要查清楚，不要多余提示，也不要错误提示」「所有的都改掉」。
+
+**什么情况下重开**：客户需要另一种 USB 配置，或需要在板子上自己跑工装协议时。

@@ -16,8 +16,12 @@ The commands below use `IAPTool`, which the board package installs here:
 
 `<board>` in a command is the board's IP address, or its USB port while it is in its
 bootloader. Commands that change the owner (`setowner`, `revoke`) need the board in its
-bootloader: [enter it by hand](../../README.md#7-factory-reset) first.
+bootloader: [enter it by hand](../../README.md#entering-the-bootloader-by-hand) first.
 `IAPTool getowner <board>` shows which key a board trusts.
+
+On Windows, run the commands in Command Prompt (`cmd`), not PowerShell: PowerShell's `>`
+writes the certificate file in an encoding IAPTool cannot read, and `%LocalAppData%` is
+written `$env:LOCALAPPDATA` there.
 
 ## Letting colleagues upload
 
@@ -29,7 +33,8 @@ leaves the owner's PC.
    skip it if an earlier upload already created one there), then `IAPTool pubkey`.
    They send the 128 hex characters to the owner.
 2. The owner issues a certificate:
-   `IAPTool cert <the 128 hex characters> --key=<owner key> > colleague.cert`
+   `IAPTool cert <the 128 hex characters> > colleague.cert` (signed with the owner's key at the
+   usual place; add `--key=<file>` for a key kept elsewhere)
 3. The colleague saves it next to their key as `fw_signing_key.pem.cert`. From then on the IDE
    uploads with it; nothing else changes.
 

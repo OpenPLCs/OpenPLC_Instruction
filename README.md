@@ -44,7 +44,7 @@ has to be uploaded again afterwards.
    cloned folder and import the project `OpenPLC_BootLoader`. Then *Project > Build Project*;
    the console ends with `0 errors`.
 
-   <!-- screenshot: docs/user/img/cubeide-build.png: Project Explorer with OpenPLC_BootLoader, console "Build Finished. 0 errors" -->
+   ![Build finished in STM32CubeIDE](docs/user/img/cubeide-build.png)
 
 3. Connect the ST-LINK to the JTAG connector on the upper deck and power the board.
 
@@ -54,7 +54,9 @@ has to be uploaded again afterwards.
    repository ships this configuration), *Run*. The console ends with
    `Download verified successfully`.
 
-   <!-- screenshot: docs/user/img/cubeide-run.png: Run menu with OpenPLC_BootLoader, console "Download verified successfully" -->
+   ![Run Configurations with OpenPLC_BootLoader](docs/user/img/cubeide-runconfig.png)
+
+   <!-- screenshot: docs/user/img/cubeide-run.png: console "Download verified successfully" -->
 
    With STM32CubeProgrammer instead: connect over ST-LINK (SWD), open
    `Debug/OpenPLC_BootLoader.hex`, *Download*.
@@ -91,7 +93,7 @@ has to be uploaded again afterwards.
 4. *Tools > Board > OpenPLC_Alpha H743IIKx > OPEN-PLC*. Leave the other *Tools* menus at
    their defaults.
 
-   <!-- screenshot: docs/user/img/ide-select-board.png: Tools > Board > OpenPLC_Alpha H743IIKx > OPEN-PLC -->
+   ![Tools > Board > OpenPLC_Alpha H743IIKx > OPEN-PLC](docs/user/img/ide-select-board.png)
 
 ## 4. Linux and macOS: permissions
 
@@ -129,12 +131,12 @@ has to be uploaded again afterwards.
    | Port | Upload goes over |
    |---|---|
    | The board's USB serial port, labelled `OPEN-PLC` | USB |
-   | The board's IP address | Ethernet |
+   | The board under *Network ports*, shown as `STM32H743 (<package version>_<sketch version>) @ <IP address>` | Ethernet |
 
    Picking a port makes LED3 on that board blink fast for about 2 s, so you can tell
    several boards apart.
 
-   <!-- screenshot: docs/user/img/ide-port.png: Tools > Port with the OPEN-PLC USB port and the network port -->
+   ![Tools > Port: the board's USB port and its network port](docs/user/img/ide-port.png)
 
 2. **Open an example** under *File > Examples > OpenPLC_Ports* (or `OpenPLC_KNX`,
    `OpenPLC_SDRAM`). Each example's header says what to connect and what you should see.
@@ -144,7 +146,7 @@ has to be uploaded again afterwards.
 3. **Click *Upload*.** If a sketch is running, the IDE asks it to restart into the
    bootloader; the board starts the new sketch when the upload is done.
 
-   <!-- screenshot: docs/user/img/ide-upload-output.png: upload output of a first upload, claiming the board -->
+   ![Upload output](docs/user/img/ide-upload-output.png)
 
 The first upload to a new or factory-reset board makes it yours: see the next step.
 
@@ -186,17 +188,24 @@ sketch stays in flash but does not start until that upload.
 To cancel: reset the board while LED3 is lit steadily. Holding BOOT0 longer than 30 s also
 cancels it.
 
-**Only to enter the bootloader** (for example when the running sketch never returns from
-`loop()` and so does not answer an upload): do steps 1 and 2, and release BOOT0 as soon as
-LED3 stops blinking. Do not hold BOOT0 while switching on: it is also the chip's boot pin and
-keeps the bootloader from starting.
+### Entering the bootloader by hand
+
+Needed when the running sketch does not answer an upload (for example `loop()` never returns),
+and before `IAPTool revoke` or `setowner`:
+
+1. Reset the board. LED3 blinks fast for 2 s.
+2. Press BOOT0 while LED3 blinks, and release it as soon as LED3 stops blinking.
+
+The board waits in its bootloader for an upload or a command. Do not hold BOOT0 while
+switching on: it is also the chip's boot pin and keeps the bootloader from starting.
 
 ## Troubleshooting
 
 | Symptom | Cause and fix |
 |---|---|
-| The board does not answer an upload while the sketch runs | The board serves the network and upload requests between `loop()` calls and inside `delay()`. Let `loop()` return, or [enter the bootloader by hand](#7-factory-reset) |
+| The board does not answer an upload while the sketch runs | The board serves the network and upload requests between `loop()` calls and inside `delay()`. Let `loop()` return, or [enter the bootloader by hand](#entering-the-bootloader-by-hand) |
 | Upload refused: signature or owner mismatch | The board belongs to another key. Use that key, or [factory-reset](#7-factory-reset) the board |
+| Upload refused with `"ERR"` right after `Certificate was issued by this board's root` | Your key was certified by the owner but has since been revoked. `IAPTool log <IP>` shows the reason on the board; ask the owner |
 | The Serial Monitor shows nothing at 1200 baud | 1200 baud is reserved for uploads. Pick another rate |
 | Lines starting with `[sys]` in the Serial Monitor | The board's system log; write `OPENPLC_SYSTEM_LOG(OFF);` in the sketch to turn it off |
 | Linux: the IDE cannot open the USB port | [Add your user to `dialout`](#4-linux-and-macos-permissions) |

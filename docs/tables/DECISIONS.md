@@ -2988,3 +2988,13 @@ app 侧 **RNG 句柄归 `OpenPLC_Net`**（对外 `openplc_rng_words()`），`Ope
 **理由**：用户 2026-11-14：「给客户的提示要查清楚，不要多余提示，也不要错误提示」「所有的都改掉」。
 
 **什么情况下重开**：客户需要另一种 USB 配置，或需要在板子上自己跑工装协议时。
+
+## 186 · 发版附编好的 bootloader
+
+2026-11-15 定。
+
+bootloader 仓每个版本建 GitHub release，附 `OpenPLC_BootLoader-<版本>.hex`（打 tag 的那次提交用 `$TEST/tools/build_image.py` 编；原地重发时一起换）。使用指南第 2 步改成下载这个文件、用 STM32CubeProgrammer 烧；用 STM32CubeIDE 从源码编改为「自己改 bootloader 才需要」。
+
+**理由**：新板第一步就要装 CubeIDE、导入工程、编译，对客户门槛太高；用户 2026-11-15 定附。
+
+**什么情况下重开**：每块板的 bootloader 需要不同的镜像时。

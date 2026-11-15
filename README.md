@@ -22,8 +22,8 @@ What changed in 0.2.0 and how to upgrade a board already in service:
 | Software | What for | Needed |
 |---|---|---|
 | [Arduino IDE 2](https://www.arduino.cc/en/software) | Writing and uploading sketches | Always |
-| An ST-LINK probe (SWD) and [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) | Building and flashing the bootloader | Once per new board |
-| [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) | Flashing the bootloader without STM32CubeIDE | Optional |
+| An ST-LINK probe (SWD) and [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html) | Flashing the bootloader | Once per new board |
+| [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) | Building the bootloader yourself | Optional |
 
 Windows, Linux and macOS all work. Connect the board's USB port to the PC; for uploads over
 Ethernet, also connect it to a network where a DHCP server gives it an address.
@@ -33,6 +33,27 @@ Ethernet, also connect it to a network where a DHCP server gives it an address.
 The bootloader is what lets Arduino IDE upload sketches. A board that already runs
 bootloader 0.2.0 skips this step. A board with an older bootloader needs it, and its sketch
 has to be uploaded again afterwards.
+
+1. Download `OpenPLC_BootLoader-0.2.0.hex` from the
+   [0.2.0 release](https://github.com/OpenPLCs/OpenPLC_BootLoader/releases/tag/0.2.0).
+
+2. Connect the ST-LINK to the JTAG connector on the upper deck and power the board.
+
+   ![JTAG connector on the upper deck](docs/user/img/board-jtag-connector.png)
+
+3. In STM32CubeProgrammer: select *ST-LINK*, *Connect*, open the `.hex` file (*Open file*)
+   and click *Download*.
+
+   ⚠️ **Do not run a full chip erase.** The last flash sector holds the board's calibration
+   values, written at production, and its owner record; a full chip erase deletes both.
+
+4. Disconnect the probe and connect the board's USB port to the PC. A board without a sketch
+   stays in the bootloader, and its USB port appears on the PC (`COMx` on Windows,
+   `/dev/ttyACMx` on Linux).
+
+### Building the bootloader yourself
+
+Only needed if you change the bootloader.
 
 1. Get the source:
 
@@ -46,11 +67,7 @@ has to be uploaded again afterwards.
 
    ![Build finished in STM32CubeIDE](docs/user/img/cubeide-build.png)
 
-3. Connect the ST-LINK to the JTAG connector on the upper deck and power the board.
-
-   ![JTAG connector on the upper deck](docs/user/img/board-jtag-connector.png)
-
-4. *Run > Run Configurations...*, select *STM32 C/C++ Application > OpenPLC_BootLoader* (the
+3. Connect the ST-LINK as above, then *Run > Run Configurations...*, select *STM32 C/C++ Application > OpenPLC_BootLoader* (the
    repository ships this configuration), *Run*. The console ends with
    `Download verified successfully`.
 
@@ -58,15 +75,7 @@ has to be uploaded again afterwards.
 
    ![Bootloader flashed: only sector 0 is erased, Download verified successfully](docs/user/img/cubeide-run.png)
 
-   With STM32CubeProgrammer instead: connect over ST-LINK (SWD), open
-   `Debug/OpenPLC_BootLoader.hex`, *Download*.
-
-   ⚠️ **Do not run a full chip erase.** The last flash sector holds the board's calibration
-   values, written at production, and its owner record; a full chip erase deletes both.
-
-5. Disconnect the probe and connect the board's USB port to the PC. A board without a sketch
-   stays in the bootloader, and its USB port appears on the PC (`COMx` on Windows,
-   `/dev/ttyACMx` on Linux).
+   The image is also in `Debug/OpenPLC_BootLoader.hex`, for STM32CubeProgrammer as above.
 
 ## 3. Install the board package in Arduino IDE
 

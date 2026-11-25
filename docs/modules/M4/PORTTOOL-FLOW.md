@@ -494,7 +494,7 @@ stateDiagram-v2
 
 | 命令 | demo |
 |---|---|
-| `pt.caps` `pt.id` `pt.cal` `pt.list` `pt.start` `pt.set` `pt.stop` `pt.echo` `pt.hold` `pt.led` `pt.run` | 有，应答和拒绝的原文与工装固件一致；例外：工装固件的拒收原因超过 95 个字符会被截断（`sdram` 的 `wait` 低于下限那句），demo 不截 |
+| `pt.caps` `pt.id` `pt.cal` `pt.list` `pt.start` `pt.set` `pt.stop` `pt.echo` `pt.hold` `pt.led` `pt.run` | 有，应答和拒绝的原文与工装固件一致（拒收原因都在 95 个字符以内：工装固件的缓冲是 96 字节） |
 | `pt.run` 的目标 | `eth.link`、`sd.probe`、`sd.integrity`、`sd.speed`、`sdram.probe`、`sdram.sweep`；别的回 `ERR no such run target` |
 
 `pt.id` 没有 `rx_errors=` / `rx_dropped=`：`RS232` 不报接收错误。`pt.cal` 照工装固件回扇区 15 校准值区的原始字节。`pt.calw` demo 没有，回 `ERR unknown command`：烧校准值只在研发测试，第 6 步不烧（[决策 142](../../tables/DECISIONS.md)）。`pt.age`（0.18.10 加的老化任务，C.3.9）demo 也没有，同样回 `ERR unknown command`：老化跑的是工装固件，不是 demo。

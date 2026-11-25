@@ -68,7 +68,27 @@ T4-02 是 `go run` 的程序（chromedp 驱动 Chrome），不是 `go test`：�
 | 失败码和断开恢复（`recover_test.go`、`src/ptreport/failcode_test.go`、`src/ptlib/recover_test.go`，C.3.6「失败码」「断开恢复」） | 失败码拼法（判据「字段-算子」、原因码、通道、通过和只记录没有码）、报告顶上汇总；六个断开恢复项在模拟板上由 `sim.cut` 断开、问人拔掉再问插回、按随包严 / 宽两份方案的暂定判据判出通过，判据收紧时不过（失败码 `eth.recover.recover_ms-range`），删掉方案里这一步时回到只记录、不算进端口结论；各口的断开 / 线回来 / 接上判法；RS232 转换器拔掉后控制口按同名重开（假板子关掉再换一块）、在新连接上读复位原因。测不到真线、真转换器和真 USB 重新枚举 |
 | 转换器自动识别（`src/ptmatch`、`src/ptpanel/match_test.go`，[PORTTOOL-FLOW.md](../modules/M4/PORTTOOL-FLOW.md) C.3.6「转换器自动识别」） | 哪些口不碰（蓝牙、ST 的 USB 编号、CANable）；`OK match` 的解析；每个端子的结论（认出、没收到、收到不是暗号、两个口、别的端子那类的号、没有 CANable、旧固件、会话在跑）；「自动找」只认回了 `OK porttool=` 的口、两个都回时不选；识别时假串口真收到了各自的暗号、RS485 认出后绑上并记进 `porttool_ports.json`。全是假串口，测不到真转换器和真接线 |
 
+| 大屏「需要烧写」（`src/ptpanel/line_test.go`，[PORTTOOL-FLOW.md](../modules/M4/PORTTOOL-FLOW.md) C.3.10「准备·烧固件」） | 烧写失败的原因不被下一次认板盖掉；没失败过时照常换成新的原因 |
+
 ⚠️ **ST-Link 是替身**（`src/stlink/stlinktest`，内存里的 2 MiB flash）：证明发了哪些擦写、写回不碰空格子，证明不了 CubeProgrammer 和真芯片的行为。
+
+## 真板稳定性（T4-07，`TestCase/board/soak/`）
+
+```
+go run ./TestCase/board/soak --port COM12 [--stlink <序列号>] [--minutes 30] [--every 60] [--elf Output/fixture/OpenPLC_BootLoader.elf]
+```
+
+控制口要空着（面板关掉），板子上是工装固件。退出码：0 过，1 不过，2 跑不起来（口被占、找不到工具）。
+
+| 段 | 判据 |
+|---|---|
+| SWD | 8 MHz、`mode=HOTPLUG` 读 DBGMCU_IDCODE 10 次，全对才往下；有错打提示「重插 ST-Link 排线」，判不过。只读不复位 |
+| 在不在 | 每 `--every` 秒发一次 `pt.id`，3 秒内回 `OK uid=` 算在；到 `--minutes` 都在、控制口上没有 `Fault` 行才算过。`pt.id` 会让板上没跑完的老化暂停（C.3.9），所以不和老化一起跑 |
+| 取证 | 不回或出现 `Fault` 行时：1 MHz 读 ICSR、CFSR、HFSR、MMFAR、BFAR 并译出当前异常；把故障报告里的 `PC`、`LR` 经 `arm-none-eabi-addr2line` 对着 `--elf` 译成函数和行号。板子报的 `porttool=` 和 elf 旁 `VERSION` 不同时照译，但标「版本不一致，位置不可信」 |
+
+它只看接口上的数据：串口回的行和 SWD 读出的寄存器。接线、上电由人做。
+
+取证那段的解析（哪些行算故障报告、取哪几个地址）由同目录的 `soak_test.go` 拿 2026-11-25 真板打出的报告测，随 `go test ./...` 跑。
 
 ## 模拟板：手上没板子时怎么联调
 

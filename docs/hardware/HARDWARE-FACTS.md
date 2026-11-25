@@ -190,7 +190,7 @@ Arduino core 不配这个脚，它停在复位默认值，而**模拟模式断�
 | LSE 各档能带的晶振 gmcrit 上限 | `LOW` 0.5、`MEDIUMLOW` 0.75、`MEDIUMHIGH` 1.7、`HIGH` 2.7 µA/V | DS12110 Rev 10 表 45 |
 | LSE 驱动档什么时候能改 | **LSE 开着时改不动**，要先关 LSE 再设。rev Y 上两个中档的寄存器编码对调，读写都要按芯片版本换算 | HAL `stm32h7xx_hal_rcc.h:7734`、`:7746`（RM0433 原文没核对） |
 | 本晶振的 gmcrit | 按 AN2867 的 4·ESR·(2πF)²·(C0+CL)²（C0 取分销商标的 1.2 pF）：典型 0.48、最大 **0.53 µA/V**，**`LOW` 档不够** | 计算 |
-| 各档起振用时（实测） | 2026-11-03 板子 UID …0029：`LOW` / `MEDIUMLOW` / `MEDIUMHIGH` / `HIGH` 都是 130–132 ms，每档 2 次都起振、没有 `fallback`。四档几乎一样，多半是 LSERDY 本身的固定延时（约 4096 个 LSE 周期 = 125 ms），RM0433 原文没核对 | PortTool 晶振页 `rtc.lsemargin` |
+| 各档起振用时（实测） | 2026-11-03 板子 UID …0029：`LOW` / `MEDIUMLOW` / `MEDIUMHIGH` / `HIGH` 都是 130–132 ms，每档 2 次都起振、没有 `fallback`。四档几乎一样。数据手册 DS12110 Rev 11「LSE oscillator characteristics」（第 126 页）`tSU(LSE)` 只给典型 2 s、没有最大值，注明随晶振差很多；RM0433 只说 LSERDY 表示已稳定，没写固定等多少周期（2026-11-25 核对） | PortTool 晶振页 `rtc.lsemargin` |
 | 各档频率偏差（实测，对 HSE 量） | 同一块板：`LOW` −31.3、`MEDIUMLOW` −43.2、`MEDIUMHIGH` −60.4、`HIGH` −90.6 ppm，驱动档越高频率越低。`MEDIUMLOW` 连量 10 分钟（594 次）−43.35 到 −42.90 ppm，漂移 0.45 ppm。读数含 HSE 自己的误差 | PortTool 晶振页 `rtc.lsemargin`、`rtc.lsefreq` |
 | 两颗晶振对真实时间（实测） | 同一块板、`MEDIUMLOW`：RTC 对 NTP 时间快 **+44 ppm**（±10，量了 31 分钟），即 LSE 快约 44 ppm；与上一行合起来，HSE 快约 87 ppm。两颗都超出 ±20 ppm 的容差，方向都是偏快，和两组负载电容都比晶振要求的小对得上（这个因果没验证） | `$PORTTOOL/TestCase/tools/rtcdiag.py`，2026-11-03 |
 | 480 MHz | 只有 rev V 芯片能跑，且结温不超过 105 °C。板子 UID …0029 是 **rev V**（`DBGMCU_IDCODE` = `0x20036450`，REV_ID `0x2003`），app 保持 480 MHz | DS12110 Rev 10 第 22 页脚注；ST-Link 读回，2026-11-11 |

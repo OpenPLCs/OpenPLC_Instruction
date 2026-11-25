@@ -35,7 +35,7 @@ flowchart LR
 
 | # | 阶段 | 要做到什么 | 谁证明 | 状态 |
 |---|---|---|---|---|
-| **R4-01** | — | 硬件工程师能烧一个固件、双击一个 exe，就逐路测板上每个端口 | `T4-01` `T4-02` `T4-04` `T4-05` `T4-06` `T4-07` `T4-08` | 🟡 还差 DO 高侧 PWM 上限（等示波器）、干净电脑插 USB-RS232 |
+| **R4-01** | — | 硬件工程师能烧一个固件、双击一个 exe，就逐路测板上每个端口 | `T4-01` `T4-02` `T4-04` `T4-05` `T4-06` `T4-07` `T4-08` `T4-09` | 🟡 还差 DO 高侧 PWM 上限（等示波器）、干净电脑插 USB-RS232 |
 | **R4-02** | — | 工装（`PortTool`）在 Windows、Linux、macOS 上都能运行，三个平台的可执行文件一条命令一次生成（用户 2026-09-30 定） | `T4-03`（Linux）；macOS 还没有用例 | ❌ |
 | **R4-03** | — | 串口列表每个口显示它是什么芯片 / 设备；对端串口由用户选、记在本机，方案文件不写口名（[DECISIONS.md](../tables/DECISIONS.md) 第 73 条） | `T4-03`（单元测试 `$PORTTOOL/src/serialx/sysfs_test.go`、`$PORTTOOL/TestCase/host/porttool_plan/plan_test.go` 的 `TestSerialPeer*`) | ✅ |
 
@@ -60,6 +60,7 @@ CAN / KNX / SD 的硬件层已改成调一次就返回的函数（[决策 87](..
 | `T4-06` | `R4-01` | 工装 AO 设 0 关 DAC 缓冲（决策 152） | 真的 `port_dac.c` 对假 DAC 依次写 非 0 → 0 → 非 0 → 0：0 时缓冲关、非 0 时开；切换时先关通道再改缓冲；非 0 到非 0 不断通道 | `$BOOT/tests`：`ctest --preset local -R T4-06` | 主机侧；测不到真芯片的输出电平，那由上板看 | ✅ |
 | `T4-07` | `R4-01` | **真板稳定性**：工装固件放着不死，死了自己取证（[决策 192](../tables/DECISIONS.md)） | 先查 SWD：8 MHz 读 10 次全对，不对就提示重插 ST-Link 排线并判不过；再按间隔发 `pt.id` 到时长，每次都回、控制口上没有故障报告才算过；不回或出现故障报告时经 SWD 读 ICSR、CFSR、HFSR、MMFAR、BFAR，用同版本的 elf 把报告里的 PC、LR 对成函数和行号，一起打出来，判不过 | `$PORTTOOL` 里 `go run ./TestCase/board/soak --port COMx`，见 [HOW-TO-RUN-PORTTOOL-TESTS.md](../engineering/HOW-TO-RUN-PORTTOOL-TESTS.md)「T4-07」 | 真板子 | ✅ |
 | `T4-08` | `R4-01` | **真板走大屏**：从没有工装固件到写好老化任务（C.3.10，[决策 192](../tables/DECISIONS.md)） | 自带模板（只开不用接线的端口），在 `Output/build/t4-08/` 起一个独立的 PortTool。板子先摆成空片（擦扇区 0）或旧固件（`--old`），方块要报「需要烧写」且版本对；按「烧写」后要认出当前版本、自动跑完 ①、② 停在「拔线拿去高温柜」；`records/` 里 ①、② 各一份通过的报告，`line.json` 记的是文件名、单板页能按它取到；板上 `pt.age read` 的时长、项数和 ② 写的一致、没有失败；最后清掉老化任务 | `$PORTTOOL` 里 `go run ./TestCase/board/line --port COMx [--old 旧镜像.hex]`，见 [HOW-TO-RUN-PORTTOOL-TESTS.md](../engineering/HOW-TO-RUN-PORTTOOL-TESTS.md)「T4-08」 | 真板子（会擦掉板上 flash）；测不到 ③–⑤、要线的端口和真的进高温柜 | ✅ |
+| `T4-09` | `R4-01` | **真板老化**：板子自己老化，断电接着算，插回走 ③（C.3.9、C.3.10，[决策 192](../tables/DECISIONS.md)） | 同 T4-08 的独立 PortTool 跑到 ②；先用「摘除板子」走「重新老化」「接着跑」；人拔 RS232、断电上电后经 ST-Link 读老化变量和 LED3：在跑、亮 1 s 灭 1 s；跑过 10 分钟再断电，已跑时间不少于 10 分钟；跑着插回 RS232，方块到「老化没跑满」再按「接着跑」；跑满 1 小时 0 次失败、LED3 常亮；插回后 ③ 合格；最后重跑 ① ② 再按「取消老化」，板上没有任务 | `$PORTTOOL` 里 `go run ./TestCase/board/aging --port COMx`，见 [HOW-TO-RUN-PORTTOOL-TESTS.md](../engineering/HOW-TO-RUN-PORTTOOL-TESTS.md)「T4-09」 | 真板子，约 1.5 小时、人动手 5 次；LED3 只读到脚的输出电平，灯亮不亮仍由人看；测不到不合格的闪码、写进度时断电 | ⬜ |
 
 **共 6 条。**
 

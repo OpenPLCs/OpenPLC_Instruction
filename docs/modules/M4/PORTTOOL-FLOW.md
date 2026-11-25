@@ -1508,7 +1508,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 
 ### C.3.9 生产老化：板子自己跑
 
-定案在 [决策 187](../../tables/DECISIONS.md)–[190](../../tables/DECISIONS.md)；实现在 `$BOOT/TestCase/porttool/porttool_age.c`（工装固件 0.18.10 起）和 `$PORTTOOL/src/ptpanel/agetask.go`。⚠️ 没上板验证过。
+定案在 [决策 187](../../tables/DECISIONS.md)–[190](../../tables/DECISIONS.md)；实现在 `$BOOT/TestCase/porttool/porttool_age.c`（工装固件 0.18.10 起）和 `$PORTTOOL/src/ptpanel/agetask.go`。真板上由 T4-09 验过（2026-11-25，工装 0.18.13）：上电开始、断电接着算、跑满合格、LED3；没验过不合格的闪码和写进度时断电。
 
 | 项 | 做法 |
 |---|---|
@@ -1539,7 +1539,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 
 ### C.3.10 工装产线：一个方块一个工位
 
-定案在 [决策 190](../../tables/DECISIONS.md)；实现在 `$PORTTOOL/src/ptpanel/stations.go`、`line.go`、`linehistory.go`、`web/line.html`、`web/js/line.js`。⚠️ 只在模拟板上跑过。
+定案在 [决策 190](../../tables/DECISIONS.md)；实现在 `$PORTTOOL/src/ptpanel/stations.go`、`line.go`、`linehistory.go`、`web/line.html`、`web/js/line.js`。真板上由 T4-08、T4-09 验过一个工位一块板：烧固件、① ②、③ 的三个按钮和合格；两个工位同时跑还没上板。
 
 **多工位**：每个工位一个面板实例（`ptpanel.Server`），工位 n 的面板在 `/st/<n>/`，接口加同样前缀。
 

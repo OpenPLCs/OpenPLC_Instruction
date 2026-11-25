@@ -90,6 +90,28 @@ go run ./TestCase/board/soak --port COM12 [--stlink <序列号>] [--minutes 30] 
 
 取证那段的解析（哪些行算故障报告、取哪几个地址）由同目录的 `soak_test.go` 拿 2026-11-25 真板打出的报告测，随 `go test ./...` 跑。
 
+## 真板走大屏（T4-08，`TestCase/board/line/`）
+
+```
+go run ./TestCase/board/line --port COM12 [--stlink <序列号>] [--old <旧工装镜像.hex>]
+```
+
+面板要先关（它占着控制口和 ST-Link），板子上电、接着控制口和 ST-Link。⚠️ 它会擦掉板子的 flash，只在工装板上跑。退出码：0 过，1 不过，2 跑不起来。
+
+它在 `Output/build/t4-08/` 摆一个独立的 PortTool：拷 `Output/bin/<平台>/` 的 exe 和 `plans/`，`Output/fixture/` 的镜像按交付包的名字放在旁边，自己写 `stations.json`（1 号工位）、页面记忆（工装测试）和模板。模板只开不用接线的端口（温度、SD、SDRAM、RTC），老化时长 1 小时。不动 `Output/bin/` 里人用的那份配置和记录。
+
+| 段 | 判据 |
+|---|---|
+| 摆板子 | 不带 `--old` 时经 ST-Link 擦扇区 0（空片）；带 `--old` 时烧那份镜像（旧固件） |
+| 需要烧写 | 60 秒内 1 号方块到「需要烧写」：空片时固件写「空片」，旧固件时写那个版本 |
+| 烧写 | 按「烧写」后 3 分钟内认出板子，方块上的工装固件版本等于 `Output/fixture/VERSION`；中途回到「需要烧写」就把方块上的原因打出来，判不过 |
+| ① ② | 15 分钟内到「拔线拿去高温柜」，①、② 都记通过；中途「不合格」或「等条件」时打出原因，判不过 |
+| 记录 | `records/<UID>/line.json` 记 ①、② 通过，每步记的是文件名；文件在、结论是通过，`/api/line/record` 能按这个名字取到 |
+| 老化任务 | `pt.age read` 回 `state=paused`、`secs=3600`、`fails=0`，项数等于 ② 的报告写的项数 |
+| 收尾 | 发 `pt.age clear`，板子下次上电不开始老化；工装固件留在板上 |
+
+它只看接口上的数据：方块的状态（`/api/line`）、报告文件和板子的回答。要人做的（接线、上电、关面板）在跑不起来时打 `>>> ACTION:` 提示。
+
 ## 模拟板：手上没板子时怎么联调
 
 **它是什么**：`TestCase/porttool/` 那些 `.c` 原样编成的 PC 程序，只换掉外设 stub 和最外层 main。命令解析、`pt.caps`、会话逻辑、帧格式、版本号全是固件那份源码，所以固件改了它编不过 —— **不会漂移**。设计理由见 `$PROD/docs/tables/DECISIONS.md` 第 29 条。

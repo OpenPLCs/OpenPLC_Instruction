@@ -35,7 +35,7 @@ flowchart LR
 
 | # | 阶段 | 要做到什么 | 谁证明 | 状态 |
 |---|---|---|---|---|
-| **R4-01** | — | 硬件工程师能烧一个固件、双击一个 exe，就逐路测板上每个端口 | `T4-01` `T4-02` `T4-04` `T4-05` `T4-06` `T4-07` | 🟡 还差 DO 高侧 PWM 上限（等示波器）、干净电脑插 USB-RS232 |
+| **R4-01** | — | 硬件工程师能烧一个固件、双击一个 exe，就逐路测板上每个端口 | `T4-01` `T4-02` `T4-04` `T4-05` `T4-06` `T4-07` `T4-08` | 🟡 还差 DO 高侧 PWM 上限（等示波器）、干净电脑插 USB-RS232 |
 | **R4-02** | — | 工装（`PortTool`）在 Windows、Linux、macOS 上都能运行，三个平台的可执行文件一条命令一次生成（用户 2026-09-30 定） | `T4-03`（Linux）；macOS 还没有用例 | ❌ |
 | **R4-03** | — | 串口列表每个口显示它是什么芯片 / 设备；对端串口由用户选、记在本机，方案文件不写口名（[DECISIONS.md](../tables/DECISIONS.md) 第 73 条） | `T4-03`（单元测试 `$PORTTOOL/src/serialx/sysfs_test.go`、`$PORTTOOL/TestCase/host/porttool_plan/plan_test.go` 的 `TestSerialPeer*`) | ✅ |
 
@@ -59,6 +59,7 @@ CAN / KNX / SD 的硬件层已改成调一次就返回的函数（[决策 87](..
 | `T4-05` | `R4-01` | 第 6 步的 **demo 和工装固件讲同一套协议**（决策 93） | 同一份 Go 测试对工装固件的模拟板和 demo 的主机版各跑一遍，用 `src/ptproto` 解析：`pt.id`、`pt.caps` 表头与 demo 标记、demo 每个端口的形状和固件一致、拒绝原文一致、回环计数、帧字段和 `pt.run` 应答字段（差别只许是 [PORTTOOL-FLOW.md](M4/PORTTOOL-FLOW.md)「A.9」列的那些）、`pt.cal` 长度、RS232 切波特率的应答和切过去后的帧、ETH 满速率回送原样送回；另把测试项目录里用户级的每一项（目标和默认判据方案的判据步骤）在两边各跑一遍，判据要的字段缺了就不过（[决策 127](../tables/DECISIONS.md)；RS485 的 `overrun` 带 `if_present`，demo 不报时不判） | `$PORTTOOL` 里 `TestCase/test.sh t4-05`（`go test ./TestCase/host/porttool_demo/ -args -build`，要 gcc / g++） | 主机侧：demo 的协议核心原样编译，板卡包 API 换成桩，所以测不到板卡包 API 本身（那部分只由 `P5` 编译）、USB 的满速率回送，以及真的 PHY、SD 卡、SDRAM、校准值区、串口切波特率 | ✅ |
 | `T4-06` | `R4-01` | 工装 AO 设 0 关 DAC 缓冲（决策 152） | 真的 `port_dac.c` 对假 DAC 依次写 非 0 → 0 → 非 0 → 0：0 时缓冲关、非 0 时开；切换时先关通道再改缓冲；非 0 到非 0 不断通道 | `$BOOT/tests`：`ctest --preset local -R T4-06` | 主机侧；测不到真芯片的输出电平，那由上板看 | ✅ |
 | `T4-07` | `R4-01` | **真板稳定性**：工装固件放着不死，死了自己取证（[决策 192](../tables/DECISIONS.md)） | 先查 SWD：8 MHz 读 10 次全对，不对就提示重插 ST-Link 排线并判不过；再按间隔发 `pt.id` 到时长，每次都回、控制口上没有故障报告才算过；不回或出现故障报告时经 SWD 读 ICSR、CFSR、HFSR、MMFAR、BFAR，用同版本的 elf 把报告里的 PC、LR 对成函数和行号，一起打出来，判不过 | `$PORTTOOL` 里 `go run ./TestCase/board/soak --port COMx`，见 [HOW-TO-RUN-PORTTOOL-TESTS.md](../engineering/HOW-TO-RUN-PORTTOOL-TESTS.md)「T4-07」 | 真板子 | ✅ |
+| `T4-08` | `R4-01` | **真板走大屏**：从没有工装固件到写好老化任务（C.3.10，[决策 192](../tables/DECISIONS.md)） | 自带模板（只开不用接线的端口），在 `Output/build/t4-08/` 起一个独立的 PortTool。板子先摆成空片（擦扇区 0）或旧固件（`--old`），方块要报「需要烧写」且版本对；按「烧写」后要认出当前版本、自动跑完 ①、② 停在「拔线拿去高温柜」；`records/` 里 ①、② 各一份通过的报告，`line.json` 记的是文件名、单板页能按它取到；板上 `pt.age read` 的时长、项数和 ② 写的一致、没有失败；最后清掉老化任务 | `$PORTTOOL` 里 `go run ./TestCase/board/line --port COMx [--old 旧镜像.hex]`，见 [HOW-TO-RUN-PORTTOOL-TESTS.md](../engineering/HOW-TO-RUN-PORTTOOL-TESTS.md)「T4-08」 | 真板子（会擦掉板上 flash）；测不到 ③–⑤、要线的端口和真的进高温柜 | ⬜ |
 
 **共 6 条。**
 

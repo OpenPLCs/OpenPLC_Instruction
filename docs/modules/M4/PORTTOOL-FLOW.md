@@ -1508,7 +1508,7 @@ AI、AO、DO 的会话开时写明全部通道（`ch=1,2` / `ch=1,…,8`）：�
 
 ### C.3.9 生产老化：板子自己跑
 
-定案在 [决策 187](../../tables/DECISIONS.md)–[190](../../tables/DECISIONS.md)；实现在 `$BOOT/TestCase/porttool/porttool_age.c`（工装固件 0.18.10 起）和 `$PORTTOOL/src/ptpanel/agetask.go`。真板上由 T4-09 验过（2026-11-25，工装 0.18.13）：上电开始、断电接着算、跑满合格、LED3；没验过不合格的闪码和写进度时断电。
+定案在 [决策 187](../../tables/DECISIONS.md)–[190](../../tables/DECISIONS.md)；实现在 `$BOOT/TestCase/porttool/porttool_age.c`（工装固件 0.18.10 起）和 `$PORTTOOL/src/ptpanel/agetask.go`。真板上由 T4-09 验过（2026-11-25，工装 0.18.13）：上电开始、断电接着算、跑满合格、不合格和它的闪码、LED3；没验过写进度时断电。
 
 | 项 | 做法 |
 |---|---|

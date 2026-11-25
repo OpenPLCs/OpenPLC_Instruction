@@ -118,6 +118,8 @@ go run ./TestCase/board/line --port COM12 [--stlink <序列号>] [--old <旧工�
 go run ./TestCase/board/aging --port COM12 [--stlink <序列号>]
 ```
 
+`--only cancel` 只跑 ① ② 和最后「取消老化」那段（从「拔线拿去高温柜」直接摘除，不按「重新」），几分钟、不用人动手。
+
 前提同 T4-08（面板关掉、板上接着控制口和 ST-Link），用同一种独立 PortTool 和模板（老化 1 小时）。板子不是当前工装固件时先按「烧写」。`Output/fixture/` 的 elf 要和板上版本一致：老化变量的地址从它取。约 1.5 小时；要人动手时打 `>>> ACTION:`、Windows 上同时念出来，人做完由代码经 ST-Link 或方块状态看出来，不用按回车；每一步最多等人 30 分钟。退出码同 T4-08。
 
 老化中 RS232 拔着，所以经 ST-Link（`mode=HOTPLUG`，不停核）读 `porttool_age.c` 的 `running`、`done`、`passed`、`elapsed_ms`、`rounds`、`fails`、`n_items`、`task_secs`，LED3 读 PE2 的输出寄存器。

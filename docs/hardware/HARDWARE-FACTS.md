@@ -515,6 +515,8 @@ CAN 两根信号跨板走 Upper Deck **J8 pin2（CAN_TXD_PB9）/ pin3（CAN_RXD_
 | U1 | LM50BIM3/NOPB | `5V0` | `TEMP_SCPROT` → PA0 | `GNDD` |
 | U2 | LM50BIM3/NOPB | `5V0` | `TEMP_HSSW` → PA3 | `GNDD` |
 
+规定温度范围：LM50B 老芯片 −25 ~ 100 °C、新芯片 −40 ~ 125 °C（TI SNIS118I §6.3，2026-11-26 查；板上是哪一版没核实，按 100 °C 算，老化温度上限最高就取它）。
+
 输出 500 mV + 10 mV/°C（LM50 数据手册），`BoardTemperature` 例程按此换算，是对的。⚠️ 与两处抄件不符，以网表为准：`$CORE_REPO/variants/STM32H7xx/H743/variant_PLC_H743.h:228-229` 写作 NTC；`$HW/LowerDeck_overview.txt:32,85` 写作 5V 线性稳压器。
 
 ## 3.3 V 从哪来、24 V 掉到多少时它才跟着掉

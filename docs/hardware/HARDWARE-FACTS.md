@@ -192,7 +192,7 @@ Arduino core 不配这个脚，它停在复位默认值，而**模拟模式断�
 | 本晶振的 gmcrit | 按 AN2867 的 4·ESR·(2πF)²·(C0+CL)²（C0 取分销商标的 1.2 pF）：典型 0.48、最大 **0.53 µA/V**，**`LOW` 档不够** | 计算 |
 | 各档起振用时（实测） | 2026-11-03 板子 UID …0029：`LOW` / `MEDIUMLOW` / `MEDIUMHIGH` / `HIGH` 都是 130–132 ms，每档 2 次都起振、没有 `fallback`。四档几乎一样。数据手册 DS12110 Rev 11「LSE oscillator characteristics」（第 126 页）`tSU(LSE)` 只给典型 2 s、没有最大值，注明随晶振差很多；RM0433 只说 LSERDY 表示已稳定，没写固定等多少周期（2026-11-25 核对） | PortTool 晶振页 `rtc.lsemargin` |
 | 各档频率偏差（实测，对 HSE 量） | 同一块板：`LOW` −31.3、`MEDIUMLOW` −43.2、`MEDIUMHIGH` −60.4、`HIGH` −90.6 ppm，驱动档越高频率越低。`MEDIUMLOW` 连量 10 分钟（594 次）−43.35 到 −42.90 ppm，漂移 0.45 ppm。读数含 HSE 自己的误差 | PortTool 晶振页 `rtc.lsemargin`、`rtc.lsefreq` |
-| 两颗晶振对真实时间（实测） | 同一块板、`MEDIUMLOW`：RTC 对 NTP 时间快 **+44 ppm**（±10，量了 31 分钟），即 LSE 快约 44 ppm；与上一行合起来，HSE 快约 87 ppm。两颗都超出 ±20 ppm 的容差，方向都是偏快，和两组负载电容都比晶振要求的小对得上（这个因果没验证） | `$PORTTOOL/TestCase/tools/rtcdiag.py`，2026-11-03 |
+| 两颗晶振对真实时间（实测） | 同一块板、`MEDIUMLOW`：RTC 对 NTP 时间快 **+44 ppm**（±10，量了 31 分钟），即 LSE 快约 44 ppm；与上一行合起来，HSE 快约 87 ppm。两颗都超出 ±20 ppm 的容差，方向都是偏快，和两组负载电容都比晶振要求的小对得上（这个因果没验证） | 一次性诊断脚本 `rtcdiag.py`（已删，见 `OpenPLC_PortsTestingTool` 提交 8122217），2026-11-03 |
 | 480 MHz | 只有 rev V 芯片能跑，且结温不超过 105 °C。板子 UID …0029 是 **rev V**（`DBGMCU_IDCODE` = `0x20036450`，REV_ID `0x2003`），app 保持 480 MHz | DS12110 Rev 10 第 22 页脚注；ST-Link 读回，2026-11-11 |
 | bootloader 设的 LSE 档、CRS（实测） | 同一块板复位备份域后 bootloader 起振：`RCC_BDCR` = `0x810B`，`LSEDRV` = `01`（rev V 的中低档）。bootloader 和 app 的 `CRS_CR` 都是 `CEN`、`AUTOTRIMEN` 置位，USB 连着时 TRIM 从 32 调到 33，`FECAP` 不超过 55（约 0.11%，USB 要求 ±0.25%） | ST-Link 读回，2026-11-11 |
 
